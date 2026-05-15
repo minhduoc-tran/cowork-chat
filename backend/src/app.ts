@@ -6,7 +6,7 @@ import morgan from "morgan";
 import { notFoundHandler } from "./middlewares/not-found-handler";
 import { errorHandler } from "./middlewares/error-handler";
 import { setupSwagger } from "./configs/swagger";
-import healthRoutes from "./routes/health.routes";
+import routes from "./routes/index.routes";
 
 import sourceMapSupport from "source-map-support";
 import env from "./configs/env";
@@ -36,7 +36,7 @@ app.get("/", (req: Request, res: Response) => {
   res.redirect("/api/v1/health");
 });
 
-app.use("/api/v1/health", healthRoutes);
+app.use("/api/v1", routes);
 
 // Not found handler (should be after routes)
 app.use(notFoundHandler);
