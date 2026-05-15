@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import "dotenv-flow/config";
 import { z } from "zod";
 
@@ -14,7 +15,20 @@ export const envSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),
 
-  CORS_ORIGIN: z.string().optional()
+  CORS_ORIGIN: z.string().optional(),
+
+  // JWT Secrets (256-bit hex for HS256)
+  JWT_ACCESS_SECRET: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, "JWT_ACCESS_SECRET must be 256-bit hex"),
+  JWT_REFRESH_SECRET: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, "JWT_REFRESH_SECRET must be 256-bit hex"),
+
+  // Google OAuth2
+  GOOGLE_CLIENT_ID: z.string(),
+  GOOGLE_CLIENT_SECRET: z.string(),
+  GOOGLE_REDIRECT_URI: z.string().url()
 });
 
 export type Env = z.infer<typeof envSchema>;
