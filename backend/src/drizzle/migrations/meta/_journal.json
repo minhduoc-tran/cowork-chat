@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1778855044074,
-      "tag": "0000_lively_jane_foster",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1747335372000,
-      "tag": "0002_auth_login_system",
+      "when": 1778862793949,
+      "tag": "0000_simple_groot",
       "breakpoints": true
     }
   ]
