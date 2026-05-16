@@ -19,7 +19,10 @@ async function createGroupConversation(input: {
   memberIds: number[];
 }) {
   const groupName = input.name.trim();
-  const normalizedMemberIds = normalizeMemberIds(input.creatorId, input.memberIds);
+  const normalizedMemberIds = normalizeMemberIds(
+    input.creatorId,
+    input.memberIds
+  );
 
   if (!groupName) {
     throw ApiError.badRequest("Group name is required");

@@ -16,9 +16,7 @@
     "lint:fix": "eslint . --fix",
     "format:check": "npx prettier . --check",
     "format:fix": "npx prettier --write",
-    "docs": "npx tsx swagger.config.ts",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "docs": "npx tsx swagger.config.ts"
   },
   "lint-staged": {
     "src/**/*.ts": [
@@ -59,7 +57,6 @@
     "@types/node": "^25.8.0",
     "@types/pg": "^8.20.0",
     "@types/source-map-support": "^0.5.10",
-    "@types/supertest": "^6.0.3",
     "@types/swagger-ui-express": "^4.1.8",
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
@@ -70,10 +67,8 @@
     "lint-staged": "^17.0.4",
     "morgan": "^1.10.1",
     "prettier": "^3.8.3",
-    "supertest": "^7.1.1",
     "tsc-alias": "^1.8.17",
     "tsx": "^4.22.0",
-    "typescript": "^6.0.3",
-    "vitest": "^3.2.4"
+    "typescript": "^6.0.3"
   }
 }

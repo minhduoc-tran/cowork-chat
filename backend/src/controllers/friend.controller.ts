@@ -77,7 +77,11 @@ async function listFriends(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-async function listPendingRequests(req: Request, res: Response, next: NextFunction) {
+async function listPendingRequests(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   try {
     if (!req.user?.id) {
       throw ApiError.unauthorized("Not authenticated");
