@@ -109,3 +109,22 @@ docker compose down
 ```
 
 Or modify `docker-compose.yml` to use a different port.
+
+## Social and Realtime APIs
+
+### REST
+
+- `POST /api/v1/friends/requests` - Send a friend request
+- `POST /api/v1/friends/requests/:requestId/accept` - Accept a friend request
+- `POST /api/v1/friends/requests/:requestId/reject` - Reject a friend request
+- `GET /api/v1/friends` - List all friends
+- `GET /api/v1/friends/requests/pending` - List pending friend requests
+- `POST /api/v1/conversations/groups` - Create a group conversation
+
+### Socket.IO Events
+
+Connect with `handshake.auth.token` containing a valid access token.
+
+- `friend.request.received` - Received a new friend request
+- `friend.request.accepted` - A friend request was accepted
+- `conversation.created` - A group conversation was created
