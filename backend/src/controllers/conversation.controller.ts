@@ -10,11 +10,12 @@ async function createGroup(req: Request, res: Response, next: NextFunction) {
     }
 
     const name = typeof req.body.name === "string" ? req.body.name : "";
-    const memberIds = Array.isArray(req.body.memberIds)
-      ? req.body.memberIds.map(Number)
+    const rawMemberIds = Array.isArray(req.body.memberIds)
+      ? req.body.memberIds
       : [];
+    const memberIds = rawMemberIds.map((id: unknown) => Number(id));
 
-    if (memberIds.some(memberId => !Number.isInteger(memberId))) {
+    if (memberIds.some((memberId: number) => !Number.isInteger(memberId))) {
       throw ApiError.badRequest("memberIds must contain only integers");
     }
 

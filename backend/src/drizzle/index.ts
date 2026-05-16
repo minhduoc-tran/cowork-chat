@@ -2,6 +2,11 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as userSchema from "./schemas/user.schema";
 import * as refreshTokenSchema from "./schemas/refresh-token.schema";
+import * as friendSchema from "./schemas/friend.schema";
+import * as conversationSchema from "./schemas/conversation.schema";
+import * as messageSchema from "./schemas/message.schema";
+import * as attachmentSchema from "./schemas/attachment.schema";
+import * as reactionSchema from "./schemas/reaction.schema";
 import env from "../configs/env";
 
 const pool = new Pool({
@@ -10,7 +15,15 @@ const pool = new Pool({
 
 const db = drizzle({
   client: pool,
-  schema: { ...userSchema, ...refreshTokenSchema }
+  schema: {
+    ...userSchema,
+    ...refreshTokenSchema,
+    ...friendSchema,
+    ...conversationSchema,
+    ...messageSchema,
+    ...attachmentSchema,
+    ...reactionSchema
+  }
 });
 
 export { db };
