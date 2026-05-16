@@ -27,3 +27,19 @@ export type ConversationCreatedPayload = {
   members: ConversationMember[];
   systemMessage: Message;
 };
+
+export type ConversationJoinedPayload = {
+  conversationId: number;
+};
+
+export type MessageReceivedPayload = {
+  conversation: Conversation;
+  members: Array<{
+    userId: number;
+    displayName: string;
+    email: string;
+    avatar: string | null;
+    isFriend: boolean;
+  }>;
+  message: Message;
+};

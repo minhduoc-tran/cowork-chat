@@ -2,7 +2,8 @@ import { getSocketServer } from "./socket.server";
 import type {
   ConversationCreatedPayload,
   FriendRequestAcceptedPayload,
-  FriendRequestReceivedPayload
+  FriendRequestReceivedPayload,
+  MessageReceivedPayload
 } from "../types/socket.types";
 
 export const socketEmitter = {
@@ -31,5 +32,19 @@ export const socketEmitter = {
     userIds.forEach(userId => {
       io.to(`user:${userId}`).emit("conversation.created", payload);
     });
+  },
+  emitConversationMessage(
+    conversationId: number,
+    userIds: number[],
+    senderId: number,
+    payload: MessageReceivedPayload
+  ) {
+    const io = getSocketServer();
+    io.to(`conversation:${conversationId}`).emit("message.received", payload);
+    userIds
+      .filter(userId => userId !== senderId)
+      .forEach(userId => {
+        io.to(`user:${userId}`).emit("message.received", payload);
+      });
   }
 };

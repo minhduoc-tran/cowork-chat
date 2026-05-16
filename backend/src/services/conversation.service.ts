@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, desc } from "drizzle-orm";
 import {
   conversationMembersTable,
   conversationsTable,
@@ -11,6 +11,176 @@ import { socketEmitter } from "../socket/socket-emitter";
 
 function normalizeMemberIds(creatorId: number, memberIds: number[]) {
   return [...new Set(memberIds)].filter(memberId => memberId !== creatorId);
+}
+
+async function findDirectConversationBetweenUsers(
+  userAId: number,
+  userBId: number
+) {
+  const directMemberships = await db
+    .select({
+      conversation: conversationsTable,
+      member: conversationMembersTable
+    })
+    .from(conversationMembersTable)
+    .innerJoin(
+      conversationsTable,
+      eq(conversationMembersTable.conversationId, conversationsTable.id)
+    )
+    .where(
+      and(
+        eq(conversationsTable.type, "direct"),
+        isNull(conversationMembersTable.leftAt),
+        inArray(conversationMembersTable.userId, [userAId, userBId])
+      )
+    );
+
+  const grouped = new Map<number, typeof directMemberships>();
+  directMemberships.forEach(row => {
+    const existing = grouped.get(row.conversation.id) ?? [];
+    existing.push(row);
+    grouped.set(row.conversation.id, existing);
+  });
+
+  const match = [...grouped.values()].find(rows => {
+    const ids = rows.map(row => row.member.userId).sort((a, b) => a - b);
+    return (
+      ids.length === 2 &&
+      ids[0] === Math.min(userAId, userBId) &&
+      ids[1] === Math.max(userAId, userBId)
+    );
+  });
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    conversation: match[0].conversation,
+    members: match.map(row => row.member)
+  };
+}
+
+async function createDirectConversation(userAId: number, userBId: number) {
+  const createdAt = new Date();
+  return db.transaction(async tx => {
+    const [conversation] = await tx
+      .insert(conversationsTable)
+      .values({
+        type: "direct",
+        createdAt,
+        updatedAt: createdAt
+      })
+      .returning();
+
+    const members = await tx
+      .insert(conversationMembersTable)
+      .values([
+        { conversationId: conversation.id, userId: userAId, role: "member" },
+        { conversationId: conversation.id, userId: userBId, role: "member" }
+      ])
+      .returning();
+
+    return { conversation, members };
+  });
+}
+
+async function ensureActiveConversationMember(
+  conversationId: number,
+  userId: number
+) {
+  const member = await db.query.conversationMembersTable.findFirst({
+    where: and(
+      eq(conversationMembersTable.conversationId, conversationId),
+      eq(conversationMembersTable.userId, userId),
+      isNull(conversationMembersTable.leftAt)
+    )
+  });
+
+  if (!member) {
+    throw ApiError.forbidden("You are not a member of this conversation");
+  }
+
+  return member;
+}
+
+async function listUserConversations(userId: number) {
+  const memberships = await db
+    .select({
+      member: conversationMembersTable,
+      conversation: conversationsTable
+    })
+    .from(conversationMembersTable)
+    .innerJoin(
+      conversationsTable,
+      eq(conversationMembersTable.conversationId, conversationsTable.id)
+    )
+    .where(
+      and(
+        eq(conversationMembersTable.userId, userId),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+
+  const conversationIds = memberships.map(m => m.conversation.id);
+
+  if (conversationIds.length === 0) {
+    return { conversations: [] };
+  }
+
+  const allMembers = await db
+    .select({
+      member: conversationMembersTable,
+      conversation: conversationsTable
+    })
+    .from(conversationMembersTable)
+    .innerJoin(
+      conversationsTable,
+      eq(conversationMembersTable.conversationId, conversationsTable.id)
+    )
+    .where(
+      and(
+        inArray(conversationMembersTable.conversationId, conversationIds),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+
+  const messages = await db
+    .select({
+      message: messagesTable,
+      conversation: conversationsTable
+    })
+    .from(messagesTable)
+    .innerJoin(
+      conversationsTable,
+      eq(messagesTable.conversationId, conversationsTable.id)
+    )
+    .where(inArray(messagesTable.conversationId, conversationIds))
+    .orderBy(desc(messagesTable.createdAt));
+
+  const membersByConversation = new Map<number, typeof allMembers>();
+  allMembers.forEach(row => {
+    const existing = membersByConversation.get(row.conversation.id) ?? [];
+    existing.push(row);
+    membersByConversation.set(row.conversation.id, existing);
+  });
+
+  const lastMessageByConversation = new Map<number, (typeof messages)[0]>();
+  messages.forEach(row => {
+    if (!lastMessageByConversation.has(row.conversation.id)) {
+      lastMessageByConversation.set(row.conversation.id, row);
+    }
+  });
+
+  const conversations = memberships.map(m => ({
+    conversation: m.conversation,
+    members:
+      membersByConversation.get(m.conversation.id)?.map(r => r.member) ?? [],
+    lastMessage:
+      lastMessageByConversation.get(m.conversation.id)?.message ?? null
+  }));
+
+  return { conversations };
 }
 
 async function createGroupConversation(input: {
@@ -104,5 +274,9 @@ async function createGroupConversation(input: {
 }
 
 export const conversationService = {
-  createGroupConversation
+  createGroupConversation,
+  findDirectConversationBetweenUsers,
+  createDirectConversation,
+  ensureActiveConversationMember,
+  listUserConversations
 };
