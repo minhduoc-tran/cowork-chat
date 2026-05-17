@@ -1,12 +1,13 @@
+import type { ApiResponse } from "../../client"
+import { apiClient } from "../../client"
+import { AUTH_ROUTES } from "../../routes"
+
 import type {
-  ApiResponse,
   LoginResponse,
   MeResponse,
   RefreshResponse,
   RegisterResponse,
-} from "../../client"
-import { apiClient } from "../../client"
-import { AUTH_ROUTES } from "../../routes"
+} from "./types"
 
 export const authApi = {
   login: (email: string, password: string) =>

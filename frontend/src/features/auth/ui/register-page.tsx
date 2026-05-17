@@ -1,11 +1,19 @@
 import { useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Controller } from "react-hook-form"
 import { Mail } from "lucide-react"
+import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
+
+import {
+  type RegisterFormData,
+  registerSchema,
+} from "@/features/auth"
 
 import { useRegister } from "@/shared/api"
 import { Button } from "@/shared/ui/button"
+import { Field, FieldError, FieldLabel } from "@/shared/ui/field"
 import { Input } from "@/shared/ui/input"
-import { Label } from "@/shared/ui/label"
 import { Separator } from "@/shared/ui/separator"
 
 import { GoogleIcon } from "./google-icon"
@@ -16,55 +24,27 @@ export function RegisterPage() {
   const registerMutation = useRegister()
   const navigate = useNavigate()
 
-  const syncPasswordValidity = (form: HTMLFormElement) => {
-    const passwordInput = form.elements.namedItem(
-      "password"
-    ) as HTMLInputElement | null
-    const confirmPasswordInput = form.elements.namedItem(
-      "confirmPassword"
-    ) as HTMLInputElement | null
+  const form = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    mode: "onChange",
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  })
 
-    if (!passwordInput || !confirmPasswordInput) return
-
-    if (
-      confirmPasswordInput.validity.customError &&
-      passwordInput.value === confirmPasswordInput.value
-    ) {
-      confirmPasswordInput.setCustomValidity("")
-      return
-    }
-
-    if (passwordInput.value && confirmPasswordInput.value) {
-      confirmPasswordInput.setCustomValidity(
-        passwordInput.value === confirmPasswordInput.value
-          ? ""
-          : "Mật khẩu xác nhận không khớp"
-      )
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const form = e.currentTarget
-    const formData = new FormData(form)
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-    const confirmPassword = formData.get("confirmPassword") as string
-    const firstName = formData.get("firstName") as string
-    const lastName = formData.get("lastName") as string
-    const confirmPasswordInput = form.elements.namedItem(
-      "confirmPassword"
-    ) as HTMLInputElement | null
-
-    confirmPasswordInput?.setCustomValidity("")
-    if (password !== confirmPassword) {
-      confirmPasswordInput?.setCustomValidity("Mật khẩu xác nhận không khớp")
-      confirmPasswordInput?.reportValidity()
-      return
-    }
-
-    const displayName = [firstName, lastName].filter(Boolean).join(" ")
-    await registerMutation.mutateAsync({ email, password, displayName })
+  const onSubmit = async (data: RegisterFormData) => {
+    const displayName = [data.firstName, data.lastName]
+      .filter(Boolean)
+      .join(" ")
+    await registerMutation.mutateAsync({
+      email: data.email,
+      password: data.password,
+      displayName,
+    })
     navigate("/")
   }
 
@@ -144,172 +124,207 @@ export function RegisterPage() {
             </p>
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName" className="text-sm font-medium">
-                  Họ
-                </Label>
-                <Input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  placeholder="Nguyễn"
-                  autoComplete="given-name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName" className="text-sm font-medium">
-                  Tên
-                </Label>
-                <Input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  placeholder="Văn A"
-                  autoComplete="family-name"
-                />
-              </div>
+              <Controller
+                name="firstName"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Họ</FieldLabel>
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type="text"
+                      placeholder="Nguyễn"
+                      autoComplete="given-name"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
+              <Controller
+                name="lastName"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Tên</FieldLabel>
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type="text"
+                      placeholder="Văn A"
+                      autoComplete="family-name"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email
-              </Label>
-              <div className="relative">
-                <Mail className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="email@cong-ty.com"
-                  className="pl-10"
-                  autoComplete="email"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">
-                Mật khẩu
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  className="pr-10"
-                  autoComplete="new-password"
-                  minLength={8}
-                  onInput={(e) => syncPasswordValidity(e.currentTarget.form!)}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? (
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.255.949m-3.592 2.223A9.953 9.953 0 013 12c0-4.478 4.03-8 9-8s9 3.582 9 8a9.953 9.953 0 01-2.235 5.314m-4.243-2.223a3 3 0 00-4.243 4.243"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
-                    </svg>
+            <Controller
+              name="email"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                  <div className="relative">
+                    <Mail className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type="email"
+                      placeholder="email@cong-ty.com"
+                      className="pl-10"
+                      autoComplete="email"
+                      aria-invalid={fieldState.invalid}
+                    />
+                  </div>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
                   )}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">Tối thiểu 8 ký tự</p>
-            </div>
+                </Field>
+              )}
+            />
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-sm font-medium">
-                Xác nhận mật khẩu
-              </Label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  className="pr-10"
-                  autoComplete="new-password"
-                  minLength={8}
-                  onInput={(e) => syncPasswordValidity(e.currentTarget.form!)}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showConfirmPassword ? (
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+            <Controller
+              name="password"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Mật khẩu</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      className="pr-10"
+                      autoComplete="new-password"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.255.949m-3.592 2.223A9.953 9.953 0 013 12c0-4.478 4.03-8 9-8s9 3.582 9 8a9.953 9.953 0 01-2.235 5.314m-4.243-2.223a3 3 0 00-4.243 4.243"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
-                    </svg>
+                      {showPassword ? (
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.255.949m-3.592 2.223A9.953 9.953 0 013 12c0-4.478 4.03-8 9-8s9 3.582 9 8a9.953 9.953 0 01-2.235 5.314m-4.243-2.223a3 3 0 00-4.243 4.243"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Tối thiểu 8 ký tự
+                  </p>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
                   )}
-                </button>
-              </div>
-            </div>
+                </Field>
+              )}
+            />
+
+            <Controller
+              name="confirmPassword"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Xác nhận mật khẩu</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      className="pr-10"
+                      autoComplete="new-password"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showConfirmPassword ? (
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.255.949m-3.592 2.223A9.953 9.953 0 013 12c0-4.478 4.03-8 9-8s9 3.582 9 8a9.953 9.953 0 01-2.235 5.314m-4.243-2.223a3 3 0 00-4.243 4.243"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
+              )}
+            />
 
             <Button type="submit" className="w-full">
               Tạo tài khoản

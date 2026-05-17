@@ -1,11 +1,19 @@
 import { useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Controller } from "react-hook-form"
 import { Mail } from "lucide-react"
+import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
+
+import {
+  type LoginFormData,
+  loginSchema,
+} from "@/features/auth"
 
 import { useLogin } from "@/shared/api"
 import { Button } from "@/shared/ui/button"
+import { Field, FieldError, FieldLabel } from "@/shared/ui/field"
 import { Input } from "@/shared/ui/input"
-import { Label } from "@/shared/ui/label"
 import { Separator } from "@/shared/ui/separator"
 
 import { GoogleIcon } from "./google-icon"
@@ -15,12 +23,17 @@ export function LoginPage() {
   const loginMutation = useLogin()
   const navigate = useNavigate()
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-    await loginMutation.mutateAsync({ email, password })
+  const form = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    mode: "onChange",
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  })
+
+  const onSubmit = async (data: LoginFormData) => {
+    await loginMutation.mutateAsync(data)
     navigate("/")
   }
 
@@ -100,90 +113,104 @@ export function LoginPage() {
             </p>
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email
-              </Label>
-              <div className="relative">
-                <Mail className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="email@cong-ty.com"
-                  className="pl-10"
-                  autoComplete="email"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm font-medium">
-                  Mật khẩu
-                </Label>
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Quên mật khẩu?
-                </button>
-              </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  className="pr-10"
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? (
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.255.949m-3.592 2.223A9.953 9.953 0 013 12c0-4.478 4.03-8 9-8s9 3.582 9 8a9.953 9.953 0 01-2.235 5.314m-4.243-2.223a3 3 0 00-4.243 4.243"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
-                    </svg>
+          <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+            <Controller
+              name="email"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                  <div className="relative">
+                    <Mail className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type="email"
+                      placeholder="email@cong-ty.com"
+                      className="pl-10"
+                      autoComplete="email"
+                      aria-invalid={fieldState.invalid}
+                    />
+                  </div>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
                   )}
-                </button>
-              </div>
-            </div>
+                </Field>
+              )}
+            />
+
+            <Controller
+              name="password"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <div className="flex items-center justify-between">
+                    <FieldLabel htmlFor={field.name}>Mật khẩu</FieldLabel>
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Quên mật khẩu?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      className="pr-10"
+                      autoComplete="current-password"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? (
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.255.949m-3.592 2.223A9.953 9.953 0 013 12c0-4.478 4.03-8 9-8s9 3.582 9 8a9.953 9.953 0 01-2.235 5.314m-4.243-2.223a3 3 0 00-4.243 4.243"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
+              )}
+            />
 
             <Button type="submit" className="w-full">
               Đăng nhập
