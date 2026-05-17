@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Mail } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { useAuth } from "@/features/auth"
+import { useAuthStore } from "@/features/auth"
 
 import { Button } from "@/shared/ui/button"
 import { Input } from "@/shared/ui/input"
@@ -13,7 +13,7 @@ import { GoogleIcon } from "./google-icon"
 
 export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
-  const { login } = useAuth()
+  const login = useAuthStore((state) => state.login)
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

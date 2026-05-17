@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { Mail } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
+
+import { useAuthStore } from "@/features/auth"
 
 import { Button } from "@/shared/ui/button"
 import { Input } from "@/shared/ui/input"
@@ -12,6 +14,19 @@ import { GoogleIcon } from "./google-icon"
 export function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const register = useAuthStore((state) => state.register)
+  const navigate = useNavigate()
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+    const firstName = formData.get("firstName") as string
+    const lastName = formData.get("lastName") as string
+    await register(email, password, firstName, lastName)
+    navigate("/")
+  }
 
   return (
     <div className="grid min-h-dvh w-full grid-cols-1 overflow-x-hidden lg:h-dvh lg:grid-cols-2 lg:overflow-hidden">
@@ -89,7 +104,7 @@ export function RegisterPage() {
             </p>
           </div>
 
-          <form className="space-y-5">
+          <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName" className="text-sm font-medium">
@@ -130,6 +145,7 @@ export function RegisterPage() {
                   placeholder="email@cong-ty.com"
                   className="pl-10"
                   autoComplete="email"
+                  required
                 />
               </div>
             </div>
@@ -146,6 +162,7 @@ export function RegisterPage() {
                   placeholder="••••••••"
                   className="pr-10"
                   autoComplete="new-password"
+                  required
                 />
                 <button
                   type="button"
@@ -204,6 +221,7 @@ export function RegisterPage() {
                   placeholder="••••••••"
                   className="pr-10"
                   autoComplete="new-password"
+                  required
                 />
                 <button
                   type="button"
