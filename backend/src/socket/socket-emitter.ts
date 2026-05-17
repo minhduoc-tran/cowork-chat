@@ -3,7 +3,9 @@ import type {
   ConversationCreatedPayload,
   FriendRequestAcceptedPayload,
   FriendRequestReceivedPayload,
-  MessageReceivedPayload
+  MessageReceivedPayload,
+  ViewerScopedPresencePayload,
+  TypingUpdatedPayload
 } from "../types/socket.types";
 
 export const socketEmitter = {
@@ -46,5 +48,27 @@ export const socketEmitter = {
       .forEach(userId => {
         io.to(`user:${userId}`).emit("message.received", payload);
       });
+  },
+
+  emitPresenceUpdated(viewerPayloads: ViewerScopedPresencePayload[]) {
+    const io = getSocketServer();
+    viewerPayloads.forEach(({ viewerUserId, payload }) => {
+      io.to(`user:${viewerUserId}`).emit("presence.updated", payload);
+    });
+  },
+
+  emitTypingUpdated(
+    conversationId: number,
+    senderSocketId: string | null,
+    payload: TypingUpdatedPayload
+  ) {
+    const io = getSocketServer().to(`conversation:${conversationId}`);
+
+    if (senderSocketId) {
+      io.except(senderSocketId).emit("typing.updated", payload);
+      return;
+    }
+
+    io.emit("typing.updated", payload);
   }
 };

@@ -1,5 +1,9 @@
 import type { Conversation, ConversationMember, Message } from "../drizzle";
 import type { FriendRequest } from "../drizzle/schemas/friend.schema";
+import type {
+  PresenceUpdatedPayload,
+  TypingUpdatedPayload
+} from "./presence.types";
 
 export type FriendRequestReceivedPayload = {
   request: FriendRequest;
@@ -28,9 +32,16 @@ export type ConversationCreatedPayload = {
   systemMessage: Message;
 };
 
+export type ViewerScopedPresencePayload = {
+  viewerUserId: number;
+  payload: PresenceUpdatedPayload;
+};
+
 export type ConversationJoinedPayload = {
   conversationId: number;
 };
+
+export type { PresenceUpdatedPayload, TypingUpdatedPayload };
 
 export type MessageReceivedPayload = {
   conversation: Conversation;
