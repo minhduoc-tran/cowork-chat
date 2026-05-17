@@ -1,5 +1,5 @@
 export { AuthProvider } from "./model/auth-provider"
-export { useAuth } from "./model/use-auth"
 export { hydrateAuthSession, useAuthStore } from "./model/auth-store"
+export { useAuth } from "./model/use-auth"
 export { LoginPage } from "./ui/login-page"
 export { RegisterPage } from "./ui/register-page"
