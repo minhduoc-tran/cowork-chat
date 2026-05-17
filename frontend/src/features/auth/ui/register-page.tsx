@@ -19,11 +19,24 @@ export function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
+    const form = e.currentTarget
+    const formData = new FormData(form)
     const email = formData.get("email") as string
     const password = formData.get("password") as string
+    const confirmPassword = formData.get("confirmPassword") as string
     const firstName = formData.get("firstName") as string
     const lastName = formData.get("lastName") as string
+    const confirmPasswordInput = form.elements.namedItem(
+      "confirmPassword"
+    ) as HTMLInputElement | null
+
+    confirmPasswordInput?.setCustomValidity("")
+    if (password !== confirmPassword) {
+      confirmPasswordInput?.setCustomValidity("Mật khẩu xác nhận không khớp")
+      confirmPasswordInput?.reportValidity()
+      return
+    }
+
     await register(email, password, firstName, lastName)
     navigate("/")
   }
@@ -162,6 +175,7 @@ export function RegisterPage() {
                   placeholder="••••••••"
                   className="pr-10"
                   autoComplete="new-password"
+                  minLength={8}
                   required
                 />
                 <button
@@ -221,6 +235,8 @@ export function RegisterPage() {
                   placeholder="••••••••"
                   className="pr-10"
                   autoComplete="new-password"
+                  minLength={8}
+                  onInput={(e) => e.currentTarget.setCustomValidity("")}
                   required
                 />
                 <button
