@@ -1,7 +1,5 @@
 import { createContext } from "react"
 
-const SESSION_KEY = "cowork-chat-session"
-
 interface User {
   email: string
   firstName?: string
@@ -22,6 +20,6 @@ interface AuthContextValue {
   ) => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null)
+const AuthContext = createContext(false)
 
-export { AuthContext, type AuthContextValue, SESSION_KEY, type User }
+export { AuthContext, type AuthContextValue }
