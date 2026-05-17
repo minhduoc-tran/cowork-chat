@@ -2,8 +2,7 @@ import { useState } from "react"
 import { Mail } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { useAuthStore } from "@/features/auth"
-
+import { useRegister } from "@/shared/api"
 import { Button } from "@/shared/ui/button"
 import { Input } from "@/shared/ui/input"
 import { Label } from "@/shared/ui/label"
@@ -14,16 +13,16 @@ import { GoogleIcon } from "./google-icon"
 export function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const register = useAuthStore((state) => state.register)
+  const registerMutation = useRegister()
   const navigate = useNavigate()
 
   const syncPasswordValidity = (form: HTMLFormElement) => {
-    const passwordInput = form.elements.namedItem("password") as
-      | HTMLInputElement
-      | null
-    const confirmPasswordInput = form.elements.namedItem("confirmPassword") as
-      | HTMLInputElement
-      | null
+    const passwordInput = form.elements.namedItem(
+      "password"
+    ) as HTMLInputElement | null
+    const confirmPasswordInput = form.elements.namedItem(
+      "confirmPassword"
+    ) as HTMLInputElement | null
 
     if (!passwordInput || !confirmPasswordInput) return
 
@@ -64,7 +63,8 @@ export function RegisterPage() {
       return
     }
 
-    await register(email, password, firstName, lastName)
+    const displayName = [firstName, lastName].filter(Boolean).join(" ")
+    await registerMutation.mutateAsync({ email, password, displayName })
     navigate("/")
   }
 
@@ -105,7 +105,7 @@ export function RegisterPage() {
         </div>
 
         {/* Decorative elements */}
-        <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-1/2 bg-gradient-to-t from-indigo-600/20 to-transparent" />
+        <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-1/2 bg-linear-to-t from-indigo-600/20 to-transparent" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full border border-white/5" />
         <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full border border-white/5" />
       </div>

@@ -3,9 +3,10 @@ import { create } from "zustand"
 const SESSION_KEY = "cowork-chat-session"
 
 export interface User {
+  id: string
   email: string
-  firstName?: string
-  lastName?: string
+  displayName: string
+  avatar: string | null
 }
 
 interface AuthState {
@@ -13,14 +14,8 @@ interface AuthState {
   isHydrated: boolean
   isAuthenticated: boolean
   hydrateSession: () => void
-  login: (email: string, password: string) => Promise<void>
-  logout: () => void
-  register: (
-    email: string,
-    password: string,
-    firstName?: string,
-    lastName?: string
-  ) => Promise<void>
+  setAuth: (user: User) => void
+  clearAuth: () => void
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -49,19 +44,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isAuthenticated: false, isHydrated: true, user: null })
     }
   },
-  login: async (email, _password) => {
-    const user: User = { email }
+  setAuth: (user: User) => {
     localStorage.setItem(SESSION_KEY, JSON.stringify(user))
     set({ isAuthenticated: true, isHydrated: true, user })
   },
-  logout: () => {
+  clearAuth: () => {
     localStorage.removeItem(SESSION_KEY)
     set({ isAuthenticated: false, isHydrated: true, user: null })
-  },
-  register: async (email, _password, firstName, lastName) => {
-    const user: User = { email, firstName, lastName }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-    set({ isAuthenticated: true, isHydrated: true, user })
   },
 }))
 

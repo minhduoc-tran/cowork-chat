@@ -2,8 +2,7 @@ import { useState } from "react"
 import { Mail } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { useAuthStore } from "@/features/auth"
-
+import { useLogin } from "@/shared/api"
 import { Button } from "@/shared/ui/button"
 import { Input } from "@/shared/ui/input"
 import { Label } from "@/shared/ui/label"
@@ -13,7 +12,7 @@ import { GoogleIcon } from "./google-icon"
 
 export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
-  const login = useAuthStore((state) => state.login)
+  const loginMutation = useLogin()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -21,7 +20,7 @@ export function LoginPage() {
     const formData = new FormData(e.currentTarget)
     const email = formData.get("email") as string
     const password = formData.get("password") as string
-    await login(email, password)
+    await loginMutation.mutateAsync({ email, password })
     navigate("/")
   }
 
@@ -62,7 +61,7 @@ export function LoginPage() {
         </div>
 
         {/* Decorative elements */}
-        <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-1/2 bg-gradient-to-t from-indigo-600/20 to-transparent" />
+        <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-1/2 bg-linear-to-t from-indigo-600/20 to-transparent" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full border border-white/5" />
         <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full border border-white/5" />
       </div>
