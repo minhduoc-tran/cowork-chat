@@ -43,6 +43,14 @@ export type ConversationJoinedPayload = {
 
 export type { PresenceUpdatedPayload, TypingUpdatedPayload };
 
+export type MessageReplyPreview = {
+  id: number;
+  content: string | null;
+  senderId: number;
+  senderName: string;
+  createdAt: string;
+};
+
 export type MessageReceivedPayload = {
   conversation: Conversation;
   members: Array<{
@@ -53,4 +61,5 @@ export type MessageReceivedPayload = {
     isFriend: boolean;
   }>;
   message: Message;
+  replyTo: MessageReplyPreview | null;
 };

@@ -67,13 +67,15 @@ export function createHttpServer() {
           result = await messageService.sendConversationTextMessage({
             conversationId: payload.conversationId,
             senderId: socket.data.userId,
-            content: payload.content
+            content: payload.content,
+            replyToId: payload.replyToId
           });
         } else if (typeof payload.targetUserId === "number") {
           result = await messageService.sendDirectTextMessage({
             senderId: socket.data.userId,
             targetUserId: payload.targetUserId,
-            content: payload.content
+            content: payload.content,
+            replyToId: payload.replyToId
           });
         } else {
           socket.emit("error", { message: "Invalid message payload" });
@@ -93,7 +95,8 @@ export function createHttpServer() {
               avatar: null,
               isFriend: false
             })),
-            message: result.message
+            message: result.message,
+            replyTo: result.replyTo
           }
         );
       } catch (error) {
