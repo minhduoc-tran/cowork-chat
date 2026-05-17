@@ -1,10 +1,11 @@
 import { type ReactNode } from "react"
 import { Navigate } from "react-router-dom"
 
-import { useAuth } from "@/features/auth"
+import { useAuthStore } from "@/features/auth"
 
 export function PublicRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isHydrated } = useAuth()
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isHydrated = useAuthStore((state) => state.isHydrated)
 
   if (!isHydrated) return null
 
