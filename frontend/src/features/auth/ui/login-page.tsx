@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller } from "react-hook-form"
 import { Mail } from "lucide-react"
+import { Controller } from "react-hook-form"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 import {
   type LoginFormData,
@@ -33,8 +34,12 @@ export function LoginPage() {
   })
 
   const onSubmit = async (data: LoginFormData) => {
-    await loginMutation.mutateAsync(data)
-    navigate("/")
+    try {
+      await loginMutation.mutateAsync(data)
+      navigate("/")
+    } catch {
+      toast.error("Đăng nhập thất bại. Vui lòng thử lại.")
+    }
   }
 
   return (

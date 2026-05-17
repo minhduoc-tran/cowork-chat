@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller } from "react-hook-form"
 import { Mail } from "lucide-react"
+import { Controller } from "react-hook-form"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 import {
   type RegisterFormData,
@@ -40,12 +41,16 @@ export function RegisterPage() {
     const displayName = [data.firstName, data.lastName]
       .filter(Boolean)
       .join(" ")
-    await registerMutation.mutateAsync({
-      email: data.email,
-      password: data.password,
-      displayName,
-    })
-    navigate("/")
+    try {
+      await registerMutation.mutateAsync({
+        email: data.email,
+        password: data.password,
+        displayName,
+      })
+      navigate("/")
+    } catch {
+      toast.error("Đăng ký thất bại. Vui lòng thử lại.")
+    }
   }
 
   return (
