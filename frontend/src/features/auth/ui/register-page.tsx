@@ -17,6 +17,33 @@ export function RegisterPage() {
   const register = useAuthStore((state) => state.register)
   const navigate = useNavigate()
 
+  const syncPasswordValidity = (form: HTMLFormElement) => {
+    const passwordInput = form.elements.namedItem("password") as
+      | HTMLInputElement
+      | null
+    const confirmPasswordInput = form.elements.namedItem("confirmPassword") as
+      | HTMLInputElement
+      | null
+
+    if (!passwordInput || !confirmPasswordInput) return
+
+    if (
+      confirmPasswordInput.validity.customError &&
+      passwordInput.value === confirmPasswordInput.value
+    ) {
+      confirmPasswordInput.setCustomValidity("")
+      return
+    }
+
+    if (passwordInput.value && confirmPasswordInput.value) {
+      confirmPasswordInput.setCustomValidity(
+        passwordInput.value === confirmPasswordInput.value
+          ? ""
+          : "Mật khẩu xác nhận không khớp"
+      )
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = e.currentTarget
@@ -176,6 +203,7 @@ export function RegisterPage() {
                   className="pr-10"
                   autoComplete="new-password"
                   minLength={8}
+                  onInput={(e) => syncPasswordValidity(e.currentTarget.form!)}
                   required
                 />
                 <button
@@ -236,7 +264,7 @@ export function RegisterPage() {
                   className="pr-10"
                   autoComplete="new-password"
                   minLength={8}
-                  onInput={(e) => e.currentTarget.setCustomValidity("")}
+                  onInput={(e) => syncPasswordValidity(e.currentTarget.form!)}
                   required
                 />
                 <button
