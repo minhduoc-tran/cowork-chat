@@ -52,16 +52,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, _password) => {
     const user: User = { email }
     localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-    set({ isAuthenticated: true, user })
+    set({ isAuthenticated: true, isHydrated: true, user })
   },
   logout: () => {
     localStorage.removeItem(SESSION_KEY)
-    set({ isAuthenticated: false, user: null })
+    set({ isAuthenticated: false, isHydrated: true, user: null })
   },
   register: async (email, _password, firstName, lastName) => {
     const user: User = { email, firstName, lastName }
     localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-    set({ isAuthenticated: true, user })
+    set({ isAuthenticated: true, isHydrated: true, user })
   },
 }))
 
