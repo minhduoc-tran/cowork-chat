@@ -5,6 +5,8 @@ import { createRoot } from "react-dom/client"
 
 import { hydrateAuthSession } from "@/features/auth"
 
+import { TooltipProvider } from "@/shared/ui/tooltip.tsx"
+
 import { QueryProvider } from "./providers/query-provider.tsx"
 import { ThemeProvider } from "./providers/theme-provider.tsx"
 import App from "./app.tsx"
@@ -15,7 +17,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
       <QueryProvider>
-        <App />
+        <TooltipProvider>
+          <App />
+        </TooltipProvider>
       </QueryProvider>
     </ThemeProvider>
   </StrictMode>
