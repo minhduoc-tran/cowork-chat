@@ -3,6 +3,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios"
 
+import { getCsrfHeaderValue } from "./csrf"
 import { AUTH_ROUTES } from "./routes"
 
 export const API_BASE_URL =
@@ -46,6 +47,16 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+
+    const csrfToken = getCsrfHeaderValue(
+      config.method,
+      typeof document === "undefined" ? "" : document.cookie,
+      CSRF_TOKEN_KEY
+    )
+    if (csrfToken) {
+      config.headers["X-CSRF-Token"] = csrfToken
+    }
+
     return config
   },
   (error) => Promise.reject(error)

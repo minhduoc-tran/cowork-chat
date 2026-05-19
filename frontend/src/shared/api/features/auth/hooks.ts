@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { useAuthStore } from "@/features/auth"
 
-import { ACCESS_TOKEN_KEY } from "../../client"
+import { ACCESS_TOKEN_KEY, CSRF_TOKEN_KEY, apiClient } from "../../client"
 
 import { authApi } from "./api"
-import type { LoginResponse, RegisterResponse } from "./types"
+import type { LoginResponse, RefreshResponse, RegisterResponse } from "./types"
+import { getCookieValue } from "../../csrf"
 
 export function useLogin() {
   const setAuth = useAuthStore((state) => state.setAuth)
@@ -56,7 +57,24 @@ export function useLogout() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: () => authApi.logout().then((res) => res.data),
+    mutationFn: async () => {
+      const csrfToken = getCookieValue(
+        typeof document === "undefined" ? "" : document.cookie,
+        CSRF_TOKEN_KEY
+      )
+
+      if (!csrfToken) {
+        const refreshResponse = await authApi.refresh().then((res) => res.data)
+
+        if (refreshResponse.success) {
+          const { accessToken } = refreshResponse.data as RefreshResponse
+          localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
+          apiClient.defaults.headers.common.Authorization = `Bearer ${accessToken}`
+        }
+      }
+
+      return authApi.logout().then((res) => res.data)
+    },
 
     onSettled: () => {
       localStorage.removeItem(ACCESS_TOKEN_KEY)

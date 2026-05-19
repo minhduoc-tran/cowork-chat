@@ -3,13 +3,14 @@
 import {
   ArchiveXIcon,
   FileIcon,
-  InboxIcon,
+  MessageCircleIcon,
   SendIcon,
   TerminalIcon,
   Trash2Icon,
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 
+import { cn } from "@/shared/lib/utils"
 import { Label } from "@/shared/ui/label"
 import { NavUser } from "@/shared/ui/nav-user"
 import { type NavUserProfile } from "@/shared/ui/nav-user.utils"
@@ -31,9 +32,9 @@ import { Switch } from "@/shared/ui/switch"
 const data = {
   navMain: [
     {
-      title: "Inbox",
-      url: "/inbox",
-      icon: <InboxIcon />,
+      title: "Chat",
+      url: "/chat",
+      icon: <MessageCircleIcon />,
     },
     {
       title: "Drafts",
@@ -143,12 +144,11 @@ const data = {
 export function AppSidebar({ user }: { user: NavUserProfile | null }) {
   const location = useLocation()
   const currentPath = `/${location.pathname.split("/")[1]}`
-  const activeItem = data.navMain.find((item) => item.url === currentPath) || data.navMain[0]
+  const activeItem =
+    data.navMain.find((item) => item.url === currentPath) || data.navMain[0]
 
   return (
-    <aside
-      className="hidden h-svh w-[calc(var(--sidebar-width-icon)+1px+16rem)] shrink-0 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex"
-    >
+    <aside className="hidden h-svh w-[calc(var(--sidebar-width-icon)+1px+20rem)] shrink-0 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex">
       {/* This is the first sidebar */}
       {/* We disable collapsible and adjust width to icon. */}
       {/* This will make the sidebar appear as icons. */}
@@ -178,7 +178,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
             <SidebarGroupContent className="px-1.5 md:px-0">
               <SidebarMenu>
                 {data.navMain.map((item) => {
-                  const isActive = currentPath === item.url
+                  const isActive = activeItem?.url === item.url
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
@@ -187,7 +187,11 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
                           hidden: false,
                         }}
                         isActive={isActive}
-                        className="px-2.5 md:px-2"
+                        className={cn(
+                          "px-2.5 md:px-2",
+                          isActive &&
+                            "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm hover:bg-sidebar-primary hover:text-sidebar-primary-foreground data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground"
+                        )}
                         asChild
                       >
                         <Link to={item.url}>

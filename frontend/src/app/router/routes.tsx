@@ -8,7 +8,7 @@ import { ProtectedRoute } from "./protected-route"
 import { PublicRoute } from "./public-route"
 
 const menuRoutes = [
-  { path: "/inbox", title: "Inbox" },
+  { path: "/chat", title: "Chat" },
   { path: "/drafts", title: "Drafts" },
   { path: "/sent", title: "Sent" },
   { path: "/junk", title: "Junk" },
@@ -16,7 +16,7 @@ const menuRoutes = [
 ]
 
 export const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/inbox" replace /> },
+  { path: "/", element: <Navigate to="/chat" replace /> },
   ...menuRoutes.map(({ path }) => ({
     path,
     element: (
@@ -45,6 +45,6 @@ export const router = createBrowserRouter([
   },
   {
     path: "*",
-    element: <Navigate to="/inbox" replace />,
+    element: <Navigate to="/chat" replace />,
   },
 ])

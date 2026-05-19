@@ -3,14 +3,7 @@ import { STATUS_CODES } from "../constants/status-codes";
 import { authService } from "../services/auth.service";
 import { refreshTokenService } from "../services/refresh-token.service";
 import { ApiError } from "../utils/api-error";
-
-const REFRESH_TOKEN_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
-  path: "/api/v1/auth",
-  maxAge: 7 * 24 * 60 * 60 * 1000
-};
+import { clearAuthCookies, setAuthCookies } from "../utils/auth-cookie.util";
 
 function sendSuccess(
   res: Response,
@@ -37,12 +30,7 @@ async function register(req: Request, res: Response, next: NextFunction) {
     }
 
     const result = await authService.register(email, password, displayName);
-
-    res.cookie(
-      "refresh_token",
-      result.refreshToken,
-      REFRESH_TOKEN_COOKIE_OPTIONS
-    );
+    setAuthCookies(res, result.refreshToken);
 
     sendSuccess(
       res,
@@ -75,12 +63,7 @@ async function login(req: Request, res: Response, next: NextFunction) {
     }
 
     const result = await authService.login(email, password);
-
-    res.cookie(
-      "refresh_token",
-      result.refreshToken,
-      REFRESH_TOKEN_COOKIE_OPTIONS
-    );
+    setAuthCookies(res, result.refreshToken);
 
     sendSuccess(
       res,
@@ -112,9 +95,7 @@ async function logout(req: Request, res: Response, next: NextFunction) {
       await refreshTokenService.revokeRefreshToken(refreshToken);
     }
 
-    res.clearCookie("refresh_token", {
-      path: "/api/v1/auth"
-    });
+    clearAuthCookies(res);
 
     sendSuccess(res, null, STATUS_CODES.OK, "Logged out successfully");
   } catch (error) {
@@ -130,10 +111,10 @@ async function refresh(req: Request, res: Response, next: NextFunction) {
       throw ApiError.unauthorized("Refresh token not found");
     }
 
-    const result = await refreshTokenService.rotateRefreshToken(refreshToken);
+      const result = await refreshTokenService.rotateRefreshToken(refreshToken);
 
     if (!result.success) {
-      res.clearCookie("refresh_token", { path: "/api/v1/auth" });
+      clearAuthCookies(res);
 
       switch (result.reason) {
         case "expired":
@@ -145,11 +126,7 @@ async function refresh(req: Request, res: Response, next: NextFunction) {
       }
     }
 
-    res.cookie(
-      "refresh_token",
-      result.refreshToken,
-      REFRESH_TOKEN_COOKIE_OPTIONS
-    );
+    setAuthCookies(res, result.refreshToken);
 
     sendSuccess(
       res,
