@@ -17,7 +17,12 @@ function toSafeUser(user: User): SafeUser {
     id: user.id,
     email: user.email,
     displayName: user.displayName,
-    avatar: user.avatar
+    avatar: user.avatar,
+    coverPhoto: user.coverPhoto,
+    bio: user.bio,
+    gender: user.gender,
+    dateOfBirth: user.dateOfBirth,
+    phone: user.phone
   };
 }
 

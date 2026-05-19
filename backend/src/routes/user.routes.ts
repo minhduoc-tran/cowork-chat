@@ -6,5 +6,6 @@ const router = Router();
 
 router.use(authMiddleware);
 router.get("/by-email", userController.getByEmail);
+router.patch("/me", userController.updateProfile);
 
 export default router;

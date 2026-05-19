@@ -21,6 +21,30 @@ async function getByEmail(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function updateProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const { displayName, bio, gender, dateOfBirth, phone } = req.body;
+
+    const user = await userService.updateProfile({
+      userId: req.user.id,
+      displayName,
+      bio,
+      gender,
+      dateOfBirth,
+      phone
+    });
+
+    return ApiResponse.ok(res, "Profile updated successfully", { user });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export const userController = {
-  getByEmail
+  getByEmail,
+  updateProfile
 };

@@ -1,7 +1,7 @@
 import { type ReactNode } from "react"
 
 import { useAuthStore } from "@/features/auth"
-import { buildNavUserProfile } from "@/shared/ui/nav-user.utils"
+import { buildNavUserProfile } from "@/shared/lib/nav-user.utils"
 import { SidebarProvider } from "@/shared/ui/sidebar"
 import { AppSidebar } from "@/shared/ui/app-sidebar"
 

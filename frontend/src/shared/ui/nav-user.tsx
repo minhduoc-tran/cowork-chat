@@ -1,29 +1,11 @@
 import * as React from "react"
-import {
-  BadgeCheckIcon,
-  BellIcon,
-  ChevronsUpDownIcon,
-  CreditCardIcon,
-  LogOutIcon,
-  SparklesIcon,
-} from "lucide-react"
+import { ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react"
 
 import { useLogout } from "@/shared/api/features/auth/hooks"
-
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/shared/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu"
+  getLogoutDialogModel,
+  type NavUserProfile,
+} from "@/shared/lib/nav-user.utils"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,24 +16,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/ui/alert-dialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/shared/ui/dropdown-menu"
+import { ProfileDialog } from "@/shared/ui/profile-dialog"
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/shared/ui/sidebar"
-import {
-  getLogoutDialogModel,
-  type NavUserProfile,
-} from "@/shared/ui/nav-user.utils"
 
-export function NavUser({
-  user,
-}: {
-  user: NavUserProfile | null
-}) {
+export function NavUser({ user }: { user: NavUserProfile | null }) {
   const { isMobile } = useSidebar()
   const [isConfirmOpen, setIsConfirmOpen] = React.useState(false)
+  const [isProfileOpen, setIsProfileOpen] = React.useState(false)
   const logout = useLogout()
 
   if (!user) return null
@@ -70,7 +56,9 @@ export function NavUser({
               >
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatar ?? undefined} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">{user.initials}</AvatarFallback>
+                  <AvatarFallback className="rounded-lg">
+                    {user.initials}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
@@ -88,8 +76,13 @@ export function NavUser({
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={user.avatar ?? undefined} alt={user.name} />
-                    <AvatarFallback className="rounded-lg">{user.initials}</AvatarFallback>
+                    <AvatarImage
+                      src={user.avatar ?? undefined}
+                      alt={user.name}
+                    />
+                    <AvatarFallback className="rounded-lg">
+                      {user.initials}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">{user.name}</span>
@@ -99,35 +92,22 @@ export function NavUser({
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem>
-                  <SparklesIcon />
-                  Upgrade to Pro
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem>
-                  <BadgeCheckIcon />
-                  Account
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <CreditCardIcon />
-                  Billing
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <BellIcon />
-                  Notifications
+                <DropdownMenuItem onClick={() => setIsProfileOpen(true)}>
+                  <UserIcon />
+                  Hồ sơ
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setIsConfirmOpen(true)}>
                 <LogOutIcon />
-                Log out
+                Đăng xuất
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
+
+      <ProfileDialog open={isProfileOpen} onOpenChange={setIsProfileOpen} />
 
       <AlertDialog
         open={isConfirmOpen}

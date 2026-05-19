@@ -19,4 +19,28 @@ export type {
   RefreshResponse,
   RegisterResponse,
 } from "./features/auth/types"
-export { AUTH_ROUTES } from "./routes"
+export { conversationApi } from "./features/conversation/api"
+export { useConversations } from "./features/conversation/hooks"
+export type {
+  Conversation,
+  ConversationListItem,
+  ConversationListResponse,
+  ConversationMember,
+  ConversationMessage,
+} from "./features/conversation/types"
+export { friendApi } from "./features/friend/api"
+export { useFriends } from "./features/friend/hooks"
+export type {
+  FriendListResponse,
+  FriendshipItem,
+  FriendUser,
+} from "./features/friend/types"
+export { userApi } from "./features/user/api"
+export { useUpdateProfile } from "./features/user/hooks"
+export type { UpdateProfileInput } from "./features/user/types"
+export {
+  AUTH_ROUTES,
+  CONVERSATION_ROUTES,
+  FRIEND_ROUTES,
+  USER_ROUTES,
+} from "./routes"

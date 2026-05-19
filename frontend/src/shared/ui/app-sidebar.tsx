@@ -5,15 +5,21 @@ import {
   FileIcon,
   MessageCircleIcon,
   SendIcon,
+  SquarePenIcon,
   TerminalIcon,
   Trash2Icon,
+  UsersIcon,
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 
+import { useAuthStore } from "@/features/auth"
+
+import type { ConversationListItem } from "@/shared/api"
+import { useConversations, useFriends } from "@/shared/api"
+import { type NavUserProfile } from "@/shared/lib/nav-user.utils"
 import { cn } from "@/shared/lib/utils"
-import { Label } from "@/shared/ui/label"
+import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { NavUser } from "@/shared/ui/nav-user"
-import { type NavUserProfile } from "@/shared/ui/nav-user.utils"
 import {
   Sidebar,
   SidebarContent,
@@ -26,132 +32,202 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/shared/ui/sidebar"
-import { Switch } from "@/shared/ui/switch"
+import { Skeleton } from "@/shared/ui/skeleton"
 
-// This is sample data
-const data = {
-  navMain: [
-    {
-      title: "Chat",
-      url: "/chat",
-      icon: <MessageCircleIcon />,
-    },
-    {
-      title: "Drafts",
-      url: "/drafts",
-      icon: <FileIcon />,
-    },
-    {
-      title: "Sent",
-      url: "/sent",
-      icon: <SendIcon />,
-    },
-    {
-      title: "Junk",
-      url: "/junk",
-      icon: <ArchiveXIcon />,
-    },
-    {
-      title: "Trash",
-      url: "/trash",
-      icon: <Trash2Icon />,
-    },
-  ],
-  mails: [
-    {
-      name: "William Smith",
-      email: "williamsmith@example.com",
-      subject: "Meeting Tomorrow",
-      date: "09:34 AM",
-      teaser:
-        "Hi team, just a reminder about our meeting tomorrow at 10 AM.\nPlease come prepared with your project updates.",
-    },
-    {
-      name: "Alice Smith",
-      email: "alicesmith@example.com",
-      subject: "Re: Project Update",
-      date: "Yesterday",
-      teaser:
-        "Thanks for the update. The progress looks great so far.\nLet's schedule a call to discuss the next steps.",
-    },
-    {
-      name: "Bob Johnson",
-      email: "bobjohnson@example.com",
-      subject: "Weekend Plans",
-      date: "2 days ago",
-      teaser:
-        "Hey everyone! I'm thinking of organizing a team outing this weekend.\nWould you be interested in a hiking trip or a beach day?",
-    },
-    {
-      name: "Emily Davis",
-      email: "emilydavis@example.com",
-      subject: "Re: Question about Budget",
-      date: "2 days ago",
-      teaser:
-        "I've reviewed the budget numbers you sent over.\nCan we set up a quick call to discuss some potential adjustments?",
-    },
-    {
-      name: "Michael Wilson",
-      email: "michaelwilson@example.com",
-      subject: "Important Announcement",
-      date: "1 week ago",
-      teaser:
-        "Please join us for an all-hands meeting this Friday at 3 PM.\nWe have some exciting news to share about the company's future.",
-    },
-    {
-      name: "Sarah Brown",
-      email: "sarahbrown@example.com",
-      subject: "Re: Feedback on Proposal",
-      date: "1 week ago",
-      teaser:
-        "Thank you for sending over the proposal. I've reviewed it and have some thoughts.\nCould we schedule a meeting to discuss my feedback in detail?",
-    },
-    {
-      name: "David Lee",
-      email: "davidlee@example.com",
-      subject: "New Project Idea",
-      date: "1 week ago",
-      teaser:
-        "I've been brainstorming and came up with an interesting project concept.\nDo you have time this week to discuss its potential impact and feasibility?",
-    },
-    {
-      name: "Olivia Wilson",
-      email: "oliviawilson@example.com",
-      subject: "Vacation Plans",
-      date: "1 week ago",
-      teaser:
-        "Just a heads up that I'll be taking a two-week vacation next month.\nI'll make sure all my projects are up to date before I leave.",
-    },
-    {
-      name: "James Martin",
-      email: "jamesmartin@example.com",
-      subject: "Re: Conference Registration",
-      date: "1 week ago",
-      teaser:
-        "I've completed the registration for the upcoming tech conference.\nLet me know if you need any additional information from my end.",
-    },
-    {
-      name: "Sophia White",
-      email: "sophiawhite@example.com",
-      subject: "Team Dinner",
-      date: "1 week ago",
-      teaser:
-        "To celebrate our recent project success, I'd like to organize a team dinner.\nAre you available next Friday evening? Please let me know your preferences.",
-    },
-  ],
+const navMain = [
+  {
+    title: "Conversations",
+    url: "/conversations",
+    icon: <MessageCircleIcon />,
+  },
+  {
+    title: "Friends",
+    url: "/friends",
+    icon: <UsersIcon />,
+  },
+  {
+    title: "Drafts",
+    url: "/drafts",
+    icon: <FileIcon />,
+  },
+  {
+    title: "Sent",
+    url: "/sent",
+    icon: <SendIcon />,
+  },
+  {
+    title: "Junk",
+    url: "/junk",
+    icon: <ArchiveXIcon />,
+  },
+  {
+    title: "Trash",
+    url: "/trash",
+    icon: <Trash2Icon />,
+  },
+]
+
+function formatMessageDate(dateStr: string) {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) {
+    return date.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+  if (diffDays === 1) return "Hôm qua"
+  if (diffDays < 7) return `${diffDays} ngày trước`
+  return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })
+}
+
+function getConversationDisplayName(
+  item: ConversationListItem,
+  currentUserId: number | undefined
+): string {
+  if (item.conversation.type === "group") {
+    return item.conversation.name || "Nhóm không tên"
+  }
+  // Direct: tìm member khác mình (chỉ có userId, chưa có displayName từ API)
+  const otherMember = item.members.find((m) => m.userId !== currentUserId)
+  return otherMember ? `User #${otherMember.userId}` : "Cuộc trò chuyện"
+}
+
+function ConversationListSkeleton() {
+  return (
+    <div className="flex flex-col">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-2 border-b p-4">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="ml-auto h-3 w-12" />
+          </div>
+          <Skeleton className="h-3 w-full" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ConversationsPanel({
+  currentUserId,
+}: {
+  currentUserId: string | undefined
+}) {
+  const { data: conversationsData, isLoading } = useConversations()
+
+  if (isLoading) return <ConversationListSkeleton />
+
+  if (!conversationsData || conversationsData.conversations.length === 0) {
+    return (
+      <div className="p-4 text-center text-sm text-muted-foreground">
+        Chưa có cuộc trò chuyện nào
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {conversationsData.conversations.map((item) => (
+        <a
+          href="#"
+          key={item.conversation.id}
+          className="flex flex-col items-start gap-1.5 border-b p-4 text-sm leading-tight last:border-b-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <div className="flex w-full items-center gap-2">
+            <span className="truncate font-medium">
+              {getConversationDisplayName(
+                item,
+                currentUserId ? Number(currentUserId) : undefined
+              )}
+            </span>
+            {item.lastMessage && (
+              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                {formatMessageDate(item.lastMessage.createdAt)}
+              </span>
+            )}
+          </div>
+          {item.lastMessage && (
+            <span className="line-clamp-1 min-w-0 text-xs text-muted-foreground">
+              {item.lastMessage.content || "Tin nhắn hệ thống"}
+            </span>
+          )}
+          {!item.lastMessage && (
+            <span className="text-xs text-muted-foreground">
+              Chưa có tin nhắn
+            </span>
+          )}
+        </a>
+      ))}
+    </>
+  )
+}
+
+function FriendsPanel() {
+  const { data: friendsData, isLoading } = useFriends()
+
+  if (isLoading) return <ConversationListSkeleton />
+
+  if (!friendsData || friendsData.friends.length === 0) {
+    return (
+      <div className="p-4 text-center text-sm text-muted-foreground">
+        Chưa có bạn bè nào
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {friendsData.friends.map((item) => (
+        <a
+          href="#"
+          key={item.id}
+          className="flex items-center gap-3 border-b p-4 text-sm last:border-b-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <Avatar className="h-8 w-8 shrink-0 rounded-full">
+            <AvatarImage
+              src={item.friend.avatar ?? undefined}
+              alt={item.friend.displayName}
+            />
+            <AvatarFallback className="rounded-full text-xs">
+              {item.friend.displayName.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">
+              {item.friend.displayName}
+            </div>
+            <div className="truncate text-xs text-muted-foreground">
+              {item.friend.email}
+            </div>
+          </div>
+          <span
+            className={cn(
+              "h-2 w-2 shrink-0 rounded-full",
+              item.friend.isOnline ? "bg-emerald-500" : "bg-muted-foreground/30"
+            )}
+            aria-label={item.friend.isOnline ? "Online" : "Offline"}
+          />
+        </a>
+      ))}
+    </>
+  )
 }
 
 export function AppSidebar({ user }: { user: NavUserProfile | null }) {
   const location = useLocation()
   const currentPath = `/${location.pathname.split("/")[1]}`
   const activeItem =
-    data.navMain.find((item) => item.url === currentPath) || data.navMain[0]
+    navMain.find((item) => item.url === currentPath) || navMain[0]
+
+  const currentUserId = useAuthStore((state) => state.user?.id)
 
   return (
     <aside className="hidden h-svh w-[calc(var(--sidebar-width-icon)+1px+20rem)] shrink-0 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex">
-      {/* This is the first sidebar */}
-      {/* We disable collapsible and adjust width to icon. */}
-      {/* This will make the sidebar appear as icons. */}
+      {/* Icon sidebar */}
       <Sidebar
         collapsible="none"
         className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r"
@@ -165,8 +241,8 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
                     <TerminalIcon className="size-4" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">Acme Inc</span>
-                    <span className="truncate text-xs">Enterprise</span>
+                    <span className="truncate font-medium">CoworkChat</span>
+                    <span className="truncate text-xs">Workspace</span>
                   </div>
                 </a>
               </SidebarMenuButton>
@@ -177,7 +253,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
           <SidebarGroup>
             <SidebarGroupContent className="px-1.5 md:px-0">
               <SidebarMenu>
-                {data.navMain.map((item) => {
+                {navMain.map((item) => {
                   const isActive = activeItem?.url === item.url
                   return (
                     <SidebarMenuItem key={item.title}>
@@ -211,40 +287,28 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
         </SidebarFooter>
       </Sidebar>
 
-      {/* This is the second sidebar */}
-      {/* We disable collapsible and let it fill remaining space */}
+      {/* Content panel */}
       <div className="hidden min-w-0 flex-1 flex-col bg-sidebar md:flex">
-        <SidebarHeader className="gap-3.5 border-b p-4">
-          <div className="flex w-full items-center justify-between">
-            <div className="text-base font-medium text-foreground">
-              {activeItem?.title}
-            </div>
-            <Label className="flex items-center gap-2 text-sm">
-              <span>Unreads</span>
-              <Switch className="shadow-none" />
-            </Label>
+        <SidebarHeader className="border-b p-4">
+          <div className="flex w-full items-center gap-2">
+            <SidebarInput placeholder="Tìm kiếm..." className="flex-1" />
+            <button
+              type="button"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              aria-label="Tạo cuộc trò chuyện mới"
+            >
+              <SquarePenIcon className="size-4" />
+            </button>
           </div>
-          <SidebarInput placeholder="Type to search..." />
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup className="px-0">
             <SidebarGroupContent>
-              {data.mails.map((mail) => (
-                <a
-                  href="#"
-                  key={mail.email}
-                  className="flex flex-col items-start gap-2 border-b p-4 text-sm leading-tight whitespace-nowrap last:border-b-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                >
-                  <div className="flex w-full items-center gap-2">
-                    <span>{mail.name}</span>{" "}
-                    <span className="ml-auto text-xs">{mail.date}</span>
-                  </div>
-                  <span className="font-medium">{mail.subject}</span>
-                  <span className="line-clamp-2 min-w-0 text-xs whitespace-break-spaces">
-                    {mail.teaser}
-                  </span>
-                </a>
-              ))}
+              {currentPath === "/friends" ? (
+                <FriendsPanel />
+              ) : (
+                <ConversationsPanel currentUserId={currentUserId} />
+              )}
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>

@@ -24,6 +24,11 @@ export interface SafeUser {
   email: string;
   displayName: string;
   avatar: string | null;
+  coverPhoto: string | null;
+  bio: string | null;
+  gender: string | null;
+  dateOfBirth: string | null;
+  phone: string | null;
 }
 
 export interface AuthSessionResult {
