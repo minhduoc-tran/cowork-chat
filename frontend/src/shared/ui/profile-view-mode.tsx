@@ -1,4 +1,5 @@
 import { CameraIcon, PenLineIcon, XIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { useAuthStore } from "@/features/auth"
 
@@ -19,6 +20,7 @@ export function ProfileViewMode({
   onClose: () => void
 }) {
   const user = useAuthStore((state) => state.user)
+  const { t } = useTranslation()
 
   if (!user) return null
 
@@ -31,9 +33,9 @@ export function ProfileViewMode({
 
   const genderLabel =
     user.gender === "male"
-      ? "Nam"
+      ? t("profile.genderMale")
       : user.gender === "female"
-        ? "Nữ"
+        ? t("profile.genderFemale")
         : user.gender
           ? user.gender
           : null
@@ -50,16 +52,16 @@ export function ProfileViewMode({
     <>
       <AlertDialogHeader className="flex flex-row items-center justify-between px-4 py-3">
         <AlertDialogTitle className="text-base">
-          Thông tin tài khoản
+          {t("profile.title")}
         </AlertDialogTitle>
         <AlertDialogDescription className="sr-only">
-          Thông tin cá nhân của bạn
+          {t("profile.description")}
         </AlertDialogDescription>
         <button
           type="button"
           onClick={onClose}
           className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
-          aria-label="Đóng"
+          aria-label={t("profile.close")}
         >
           <XIcon className="size-4" />
         </button>
@@ -92,7 +94,7 @@ export function ProfileViewMode({
             <button
               type="button"
               className="absolute -right-0.5 -bottom-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-muted text-muted-foreground hover:bg-accent"
-              aria-label="Đổi ảnh đại diện"
+              aria-label={t("profile.changeAvatar")}
             >
               <CameraIcon className="size-3" />
             </button>
@@ -103,17 +105,21 @@ export function ProfileViewMode({
 
       {/* Thông tin cá nhân */}
       <div className="space-y-1 border-t px-4 py-4">
-        <h4 className="mb-3 text-sm font-semibold">Thông tin cá nhân</h4>
+        <h4 className="mb-3 text-sm font-semibold">
+          {t("profile.personalInfo")}
+        </h4>
         <div className="grid grid-cols-[5.5rem_1fr] gap-y-3 text-sm">
-          <span className="text-muted-foreground">Bio</span>
-          <span>{user.bio || "Chưa cập nhật"}</span>
-          <span className="text-muted-foreground">Giới tính</span>
-          <span>{genderLabel || "Chưa cập nhật"}</span>
-          <span className="text-muted-foreground">Ngày sinh</span>
-          <span>{formattedDob || "Chưa cập nhật"}</span>
-          <span className="text-muted-foreground">Điện thoại</span>
-          <span>{user.phone || "Chưa cập nhật"}</span>
-          <span className="text-muted-foreground">Email</span>
+          <span className="text-muted-foreground">{t("profile.bio")}</span>
+          <span>{user.bio || t("profile.notSet")}</span>
+          <span className="text-muted-foreground">{t("profile.gender")}</span>
+          <span>{genderLabel || t("profile.notSet")}</span>
+          <span className="text-muted-foreground">
+            {t("profile.dateOfBirth")}
+          </span>
+          <span>{formattedDob || t("profile.notSet")}</span>
+          <span className="text-muted-foreground">{t("profile.phone")}</span>
+          <span>{user.phone || t("profile.notSet")}</span>
+          <span className="text-muted-foreground">{t("profile.email")}</span>
           <span>{user.email}</span>
         </div>
       </div>
@@ -128,7 +134,7 @@ export function ProfileViewMode({
           }}
         >
           <PenLineIcon className="size-4" />
-          Cập nhật
+          {t("profile.update")}
         </AlertDialogAction>
       </AlertDialogFooter>
     </>

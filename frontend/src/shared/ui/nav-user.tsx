@@ -1,11 +1,15 @@
 import * as React from "react"
-import { ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react"
+import {
+  CheckIcon,
+  ChevronsUpDownIcon,
+  GlobeIcon,
+  LogOutIcon,
+  UserIcon,
+} from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { useLogout } from "@/shared/api/features/auth/hooks"
-import {
-  getLogoutDialogModel,
-  type NavUserProfile,
-} from "@/shared/lib/nav-user.utils"
+import { type NavUserProfile } from "@/shared/lib/nav-user.utils"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +27,11 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu"
 import { ProfileDialog } from "@/shared/ui/profile-dialog"
@@ -39,10 +47,9 @@ export function NavUser({ user }: { user: NavUserProfile | null }) {
   const [isConfirmOpen, setIsConfirmOpen] = React.useState(false)
   const [isProfileOpen, setIsProfileOpen] = React.useState(false)
   const logout = useLogout()
+  const { t, i18n } = useTranslation()
 
   if (!user) return null
-
-  const logoutDialog = getLogoutDialogModel(logout.isPending)
 
   return (
     <>
@@ -94,13 +101,41 @@ export function NavUser({ user }: { user: NavUserProfile | null }) {
               <DropdownMenuGroup>
                 <DropdownMenuItem onClick={() => setIsProfileOpen(true)}>
                   <UserIcon />
-                  Hồ sơ
+                  {t("userMenu.profile")}
                 </DropdownMenuItem>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <GlobeIcon />
+                    {t("userMenu.language")}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem
+                        onClick={() => i18n.changeLanguage("vi")}
+                      >
+                        <span>🇻🇳</span>
+                        {t("language.vi")}
+                        {i18n.language === "vi" && (
+                          <CheckIcon className="ml-auto size-4" />
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => i18n.changeLanguage("en")}
+                      >
+                        <span>🇺🇸</span>
+                        {t("language.en")}
+                        {i18n.language === "en" && (
+                          <CheckIcon className="ml-auto size-4" />
+                        )}
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setIsConfirmOpen(true)}>
                 <LogOutIcon />
-                Đăng xuất
+                {t("userMenu.logout")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -117,25 +152,25 @@ export function NavUser({ user }: { user: NavUserProfile | null }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{logoutDialog.title}</AlertDialogTitle>
+            <AlertDialogTitle>{t("logout.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {logoutDialog.description}
+              {t("logout.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
-              disabled={logoutDialog.isBusy}
+              disabled={logout.isPending}
               onClick={() => setIsConfirmOpen(false)}
             >
-              {logoutDialog.cancelLabel}
+              {t("logout.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={logoutDialog.isBusy}
+              disabled={logout.isPending}
               onClick={() => {
                 void logout.mutateAsync()
               }}
             >
-              {logoutDialog.confirmLabel}
+              {logout.isPending ? t("logout.confirming") : t("logout.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

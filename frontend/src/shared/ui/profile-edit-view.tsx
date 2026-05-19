@@ -1,5 +1,6 @@
 import { ChevronLeftIcon, XIcon } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 
 import { useAuthStore } from "@/features/auth"
 
@@ -32,6 +33,7 @@ export function ProfileEditView({
 }) {
   const user = useAuthStore((state) => state.user)
   const updateProfile = useUpdateProfile()
+  const { t } = useTranslation()
 
   const { control, handleSubmit } = useForm<ProfileFormData>({
     defaultValues: {
@@ -82,21 +84,21 @@ export function ProfileEditView({
           type="button"
           onClick={onBack}
           className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
-          aria-label="Quay lại"
+          aria-label={t("profileEdit.back")}
         >
           <ChevronLeftIcon className="size-4" />
         </button>
         <AlertDialogTitle className="flex-1 text-base">
-          Cập nhật thông tin cá nhân
+          {t("profileEdit.title")}
         </AlertDialogTitle>
         <AlertDialogDescription className="sr-only">
-          Cập nhật thông tin cá nhân
+          {t("profileEdit.title")}
         </AlertDialogDescription>
         <button
           type="button"
           onClick={onClose}
           className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
-          aria-label="Đóng"
+          aria-label={t("profile.close")}
         >
           <XIcon className="size-4" />
         </button>
@@ -113,7 +115,9 @@ export function ProfileEditView({
           control={control}
           render={({ field }) => (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Tên hiển thị</label>
+              <label className="text-sm font-medium">
+                {t("profileEdit.displayName")}
+              </label>
               <input
                 {...field}
                 type="text"
@@ -129,11 +133,11 @@ export function ProfileEditView({
           control={control}
           render={({ field }) => (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Bio</label>
+              <label className="text-sm font-medium">{t("profile.bio")}</label>
               <input
                 {...field}
                 type="text"
-                placeholder="Giới thiệu về bạn"
+                placeholder={t("profileEdit.bioPlaceholder")}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -142,7 +146,7 @@ export function ProfileEditView({
 
         {/* Thông tin cá nhân */}
         <div className="space-y-4">
-          <h4 className="text-sm font-semibold">Thông tin cá nhân</h4>
+          <h4 className="text-sm font-semibold">{t("profile.personalInfo")}</h4>
 
           {/* Giới tính */}
           <Controller
@@ -151,7 +155,7 @@ export function ProfileEditView({
             render={({ field }) => (
               <div className="space-y-2">
                 <label className="text-sm text-muted-foreground">
-                  Giới tính
+                  {t("profile.gender")}
                 </label>
                 <div className="flex items-center gap-6">
                   <label className="flex items-center gap-2 text-sm">
@@ -162,7 +166,7 @@ export function ProfileEditView({
                       onChange={field.onChange}
                       className="h-4 w-4 accent-primary"
                     />
-                    Nam
+                    {t("profile.genderMale")}
                   </label>
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -172,7 +176,7 @@ export function ProfileEditView({
                       onChange={field.onChange}
                       className="h-4 w-4 accent-primary"
                     />
-                    Nữ
+                    {t("profile.genderFemale")}
                   </label>
                 </div>
               </div>
@@ -181,7 +185,9 @@ export function ProfileEditView({
 
           {/* Ngày sinh */}
           <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Ngày sinh</label>
+            <label className="text-sm text-muted-foreground">
+              {t("profile.dateOfBirth")}
+            </label>
             <div className="grid grid-cols-3 gap-2">
               <Controller
                 name="day"
@@ -191,7 +197,7 @@ export function ProfileEditView({
                     {...field}
                     className="rounded-md border border-input bg-background px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="">Ngày</option>
+                    <option value="">{t("profileEdit.dayPlaceholder")}</option>
                     {days.map((d) => (
                       <option key={d} value={d}>
                         {d}
@@ -208,7 +214,9 @@ export function ProfileEditView({
                     {...field}
                     className="rounded-md border border-input bg-background px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="">Tháng</option>
+                    <option value="">
+                      {t("profileEdit.monthPlaceholder")}
+                    </option>
                     {months.map((m) => (
                       <option key={m} value={m}>
                         {String(m).padStart(2, "0")}
@@ -225,7 +233,7 @@ export function ProfileEditView({
                     {...field}
                     className="rounded-md border border-input bg-background px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="">Năm</option>
+                    <option value="">{t("profileEdit.yearPlaceholder")}</option>
                     {years.map((y) => (
                       <option key={y} value={y}>
                         {y}
@@ -244,12 +252,12 @@ export function ProfileEditView({
             render={({ field }) => (
               <div className="space-y-2">
                 <label className="text-sm text-muted-foreground">
-                  Điện thoại
+                  {t("profile.phone")}
                 </label>
                 <input
                   {...field}
                   type="tel"
-                  placeholder="+84 xxx xxx xxx"
+                  placeholder={t("profileEdit.phonePlaceholder")}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
@@ -259,7 +267,9 @@ export function ProfileEditView({
       </form>
 
       <AlertDialogFooter className="flex flex-row justify-end gap-2 border-t px-4 py-3">
-        <AlertDialogCancel onClick={onBack}>Hủy</AlertDialogCancel>
+        <AlertDialogCancel onClick={onBack}>
+          {t("profileEdit.cancel")}
+        </AlertDialogCancel>
         <AlertDialogAction
           disabled={updateProfile.isPending}
           type="submit"
@@ -269,7 +279,9 @@ export function ProfileEditView({
             void handleSubmit(onSubmit)()
           }}
         >
-          {updateProfile.isPending ? "Đang lưu..." : "Cập nhật"}
+          {updateProfile.isPending
+            ? t("profileEdit.saving")
+            : t("profileEdit.save")}
         </AlertDialogAction>
       </AlertDialogFooter>
     </>

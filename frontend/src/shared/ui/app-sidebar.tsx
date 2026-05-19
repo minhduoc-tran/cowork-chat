@@ -10,6 +10,7 @@ import {
   Trash2Icon,
   UsersIcon,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Link, useLocation } from "react-router-dom"
 
 import { useAuthStore } from "@/features/auth"
@@ -36,52 +37,58 @@ import { Skeleton } from "@/shared/ui/skeleton"
 
 const navMain = [
   {
-    title: "Conversations",
+    titleKey: "nav.conversations",
     url: "/conversations",
     icon: <MessageCircleIcon />,
   },
   {
-    title: "Friends",
+    titleKey: "nav.friends",
     url: "/friends",
     icon: <UsersIcon />,
   },
   {
-    title: "Drafts",
+    titleKey: "nav.drafts",
     url: "/drafts",
     icon: <FileIcon />,
   },
   {
-    title: "Sent",
+    titleKey: "nav.sent",
     url: "/sent",
     icon: <SendIcon />,
   },
   {
-    title: "Junk",
+    titleKey: "nav.junk",
     url: "/junk",
     icon: <ArchiveXIcon />,
   },
   {
-    title: "Trash",
+    titleKey: "nav.trash",
     url: "/trash",
     icon: <Trash2Icon />,
   },
 ]
 
-function formatMessageDate(dateStr: string) {
+function formatMessageDate(
+  dateStr: string,
+  t: (key: string, opts?: Record<string, unknown>) => string
+) {
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
   if (diffDays === 0) {
-    return date.toLocaleTimeString("vi-VN", {
+    return date.toLocaleTimeString(undefined, {
       hour: "2-digit",
       minute: "2-digit",
     })
   }
-  if (diffDays === 1) return "Hôm qua"
-  if (diffDays < 7) return `${diffDays} ngày trước`
-  return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })
+  if (diffDays === 1) return t("sidebar.yesterday")
+  if (diffDays < 7) return t("sidebar.daysAgo", { count: diffDays })
+  return date.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "2-digit",
+  })
 }
 
 function getConversationDisplayName(
@@ -118,13 +125,14 @@ function ConversationsPanel({
   currentUserId: string | undefined
 }) {
   const { data: conversationsData, isLoading } = useConversations()
+  const { t } = useTranslation()
 
   if (isLoading) return <ConversationListSkeleton />
 
   if (!conversationsData || conversationsData.conversations.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
-        Chưa có cuộc trò chuyện nào
+        {t("sidebar.noConversations")}
       </div>
     )
   }
@@ -146,18 +154,18 @@ function ConversationsPanel({
             </span>
             {item.lastMessage && (
               <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                {formatMessageDate(item.lastMessage.createdAt)}
+                {formatMessageDate(item.lastMessage.createdAt, t)}
               </span>
             )}
           </div>
           {item.lastMessage && (
             <span className="line-clamp-1 min-w-0 text-xs text-muted-foreground">
-              {item.lastMessage.content || "Tin nhắn hệ thống"}
+              {item.lastMessage.content || t("sidebar.systemMessage")}
             </span>
           )}
           {!item.lastMessage && (
             <span className="text-xs text-muted-foreground">
-              Chưa có tin nhắn
+              {t("sidebar.noMessages")}
             </span>
           )}
         </a>
@@ -168,13 +176,14 @@ function ConversationsPanel({
 
 function FriendsPanel() {
   const { data: friendsData, isLoading } = useFriends()
+  const { t } = useTranslation()
 
   if (isLoading) return <ConversationListSkeleton />
 
   if (!friendsData || friendsData.friends.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
-        Chưa có bạn bè nào
+        {t("sidebar.noFriends")}
       </div>
     )
   }
@@ -224,6 +233,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
     navMain.find((item) => item.url === currentPath) || navMain[0]
 
   const currentUserId = useAuthStore((state) => state.user?.id)
+  const { t } = useTranslation()
 
   return (
     <aside className="hidden h-svh w-[calc(var(--sidebar-width-icon)+1px+20rem)] shrink-0 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex">
@@ -256,10 +266,10 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
                 {navMain.map((item) => {
                   const isActive = activeItem?.url === item.url
                   return (
-                    <SidebarMenuItem key={item.title}>
+                    <SidebarMenuItem key={item.titleKey}>
                       <SidebarMenuButton
                         tooltip={{
-                          children: item.title,
+                          children: t(item.titleKey),
                           hidden: false,
                         }}
                         isActive={isActive}
@@ -272,7 +282,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
                       >
                         <Link to={item.url}>
                           {item.icon}
-                          <span>{item.title}</span>
+                          <span>{t(item.titleKey)}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -291,11 +301,14 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
       <div className="hidden min-w-0 flex-1 flex-col bg-sidebar md:flex">
         <SidebarHeader className="border-b p-4">
           <div className="flex w-full items-center gap-2">
-            <SidebarInput placeholder="Tìm kiếm..." className="flex-1" />
+            <SidebarInput
+              placeholder={t("sidebar.search")}
+              className="flex-1"
+            />
             <button
               type="button"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              aria-label="Tạo cuộc trò chuyện mới"
+              aria-label={t("sidebar.newChat")}
             >
               <SquarePenIcon className="size-4" />
             </button>
