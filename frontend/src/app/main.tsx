@@ -9,6 +9,7 @@ import { hydrateAuthSession } from "@/features/auth"
 import { TooltipProvider } from "@/shared/ui/tooltip.tsx"
 
 import { QueryProvider } from "./providers/query-provider.tsx"
+import { SocketProvider } from "./providers/socket-provider.tsx"
 import { ThemeProvider } from "./providers/theme-provider.tsx"
 import App from "./app.tsx"
 
@@ -18,9 +19,11 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
       <QueryProvider>
-        <TooltipProvider>
-          <App />
-        </TooltipProvider>
+        <SocketProvider>
+          <TooltipProvider>
+            <App />
+          </TooltipProvider>
+        </SocketProvider>
       </QueryProvider>
     </ThemeProvider>
   </StrictMode>

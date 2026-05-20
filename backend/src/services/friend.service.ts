@@ -179,10 +179,23 @@ async function listPendingRequests(userId: number) {
   });
 }
 
+async function listSentRequests(userId: number) {
+  return db.query.friendRequestsTable.findMany({
+    where: and(
+      eq(friendRequestsTable.senderId, userId),
+      eq(friendRequestsTable.status, "pending")
+    ),
+    with: {
+      receiver: true
+    }
+  });
+}
+
 export const friendService = {
   sendRequest,
   acceptRequest,
   rejectRequest,
   listFriends,
-  listPendingRequests
+  listPendingRequests,
+  listSentRequests
 };

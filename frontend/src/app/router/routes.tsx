@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom"
 
 import { LoginPage, RegisterPage } from "@/features/auth"
-import { HomeScreen } from "@/features/home"
+import { HomeScreen, RequestsPage } from "@/features/home"
 
 import { AppLayout } from "../layouts/app-layout"
 import { ProtectedRoute } from "./protected-route"
@@ -28,6 +28,36 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   })),
+  {
+    path: "/requests",
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <RequestsPage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/requests/received",
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <RequestsPage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/requests/sent",
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <RequestsPage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
   {
     path: "/login",
     element: (

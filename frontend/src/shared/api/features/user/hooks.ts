@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 
 import { useAuthStore } from "@/features/auth"
 
@@ -16,5 +16,21 @@ export function useUpdateProfile() {
         setAuth(data.data.user)
       }
     },
+  })
+}
+
+export function useFindUserByEmail(email: string) {
+  return useQuery({
+    queryKey: ["users", "by-email", email],
+    queryFn: () => userApi.findByEmail(email).then((res) => res.data.data),
+    enabled: email.length > 0 && email.includes("@"),
+    retry: false,
+  })
+}
+
+export function useSendFriendRequest() {
+  return useMutation({
+    mutationFn: (receiverId: number) =>
+      userApi.sendFriendRequest(receiverId).then((res) => res.data),
   })
 }

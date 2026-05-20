@@ -1,13 +1,14 @@
 "use client"
 
+import * as React from "react"
 import {
   ArchiveXIcon,
   FileIcon,
   MessageCircleIcon,
   SendIcon,
   SquarePenIcon,
-  TerminalIcon,
   Trash2Icon,
+  UserPlusIcon,
   UsersIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -19,6 +20,7 @@ import type { ConversationListItem } from "@/shared/api"
 import { useConversations, useFriends } from "@/shared/api"
 import { type NavUserProfile } from "@/shared/lib/nav-user.utils"
 import { cn } from "@/shared/lib/utils"
+import { AddFriendDialog } from "@/shared/ui/add-friend-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { NavUser } from "@/shared/ui/nav-user"
 import {
@@ -65,6 +67,11 @@ const navMain = [
     titleKey: "nav.trash",
     url: "/trash",
     icon: <Trash2Icon />,
+  },
+  {
+    titleKey: "nav.requests",
+    url: "/requests",
+    icon: <UserPlusIcon />,
   },
 ]
 
@@ -226,6 +233,36 @@ function FriendsPanel() {
   )
 }
 
+function RequestsPanel() {
+  const { t } = useTranslation()
+  const location = useLocation()
+  const currentSubPath = location.pathname
+
+  return (
+    <div className="flex flex-col">
+      <Link
+        to="/requests/received"
+        className={cn(
+          "flex items-center gap-3 border-b p-4 text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          currentSubPath === "/requests/received" &&
+            "bg-sidebar-accent font-medium"
+        )}
+      >
+        {t("requests.received")}
+      </Link>
+      <Link
+        to="/requests/sent"
+        className={cn(
+          "flex items-center gap-3 border-b p-4 text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          currentSubPath === "/requests/sent" && "bg-sidebar-accent font-medium"
+        )}
+      >
+        {t("requests.sent")}
+      </Link>
+    </div>
+  )
+}
+
 export function AppSidebar({ user }: { user: NavUserProfile | null }) {
   const location = useLocation()
   const currentPath = `/${location.pathname.split("/")[1]}`
@@ -234,6 +271,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
 
   const currentUserId = useAuthStore((state) => state.user?.id)
   const { t } = useTranslation()
+  const [isAddFriendOpen, setIsAddFriendOpen] = React.useState(false)
 
   return (
     <aside className="hidden h-svh w-[calc(var(--sidebar-width-icon)+1px+20rem)] shrink-0 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex">
@@ -246,15 +284,15 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
-                <a href="#">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <TerminalIcon className="size-4" />
+                <Link to="/">
+                  <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-primary">
+                    <img
+                      src="/images/cowork-chat.png"
+                      alt="CoworkChat"
+                      className="size-8 object-cover"
+                    />
                   </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">CoworkChat</span>
-                    <span className="truncate text-xs">Workspace</span>
-                  </div>
-                </a>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -307,6 +345,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
             />
             <button
               type="button"
+              onClick={() => setIsAddFriendOpen(true)}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               aria-label={t("sidebar.newChat")}
             >
@@ -319,6 +358,8 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
             <SidebarGroupContent>
               {currentPath === "/friends" ? (
                 <FriendsPanel />
+              ) : currentPath === "/requests" ? (
+                <RequestsPanel />
               ) : (
                 <ConversationsPanel currentUserId={currentUserId} />
               )}
@@ -326,6 +367,10 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
           </SidebarGroup>
         </SidebarContent>
       </div>
+      <AddFriendDialog
+        open={isAddFriendOpen}
+        onOpenChange={setIsAddFriendOpen}
+      />
     </aside>
   )
 }

@@ -6,6 +6,7 @@ export const en = {
     sent: "Sent",
     junk: "Junk",
     trash: "Trash",
+    requests: "Requests",
   },
   profile: {
     title: "Account Information",
@@ -58,8 +59,32 @@ export const en = {
     yesterday: "Yesterday",
     daysAgo: "{{count}} days ago",
   },
+  addFriend: {
+    title: "Add Friend",
+    searchPlaceholder: "Enter email to search...",
+    searching: "Searching...",
+    notFound: "User not found",
+    alreadyFriend: "Already friends",
+    sendRequest: "Add Friend",
+    requestSent: "Request sent",
+    sending: "Sending...",
+    yourself: "Cannot add yourself",
+  },
+  requests: {
+    received: "Received Requests",
+    sent: "Sent Requests",
+    accept: "Accept",
+    reject: "Reject",
+    pending: "Pending",
+    noReceived: "No requests received",
+    noSent: "No requests sent",
+  },
   language: {
     vi: "Tiếng Việt",
     en: "English",
+  },
+  socket: {
+    friendRequestReceived: "{{name}} sent you a friend request",
+    friendRequestAccepted: "{{name}} accepted your friend request",
   },
 } as const

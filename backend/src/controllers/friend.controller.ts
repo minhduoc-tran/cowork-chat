@@ -94,10 +94,28 @@ async function listPendingRequests(
   }
 }
 
+async function listSentRequests(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const requests = await friendService.listSentRequests(req.user.id);
+    return ApiResponse.ok(res, "Sent requests retrieved", { requests });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export const friendController = {
   createRequest,
   acceptRequest,
   rejectRequest,
   listFriends,
-  listPendingRequests
+  listPendingRequests,
+  listSentRequests
 };

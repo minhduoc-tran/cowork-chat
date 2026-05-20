@@ -29,7 +29,13 @@ export type {
   ConversationMessage,
 } from "./features/conversation/types"
 export { friendApi } from "./features/friend/api"
-export { useFriends } from "./features/friend/hooks"
+export {
+  useAcceptFriendRequest,
+  useFriends,
+  usePendingRequests,
+  useRejectFriendRequest,
+  useSentRequests,
+} from "./features/friend/hooks"
 export type {
   FriendListResponse,
   FriendshipItem,

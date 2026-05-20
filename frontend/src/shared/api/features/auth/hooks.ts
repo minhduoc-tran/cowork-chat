@@ -3,10 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@/features/auth"
 
 import { ACCESS_TOKEN_KEY, CSRF_TOKEN_KEY, apiClient } from "../../client"
+import { getCookieValue } from "../../csrf"
 
 import { authApi } from "./api"
 import type { LoginResponse, RefreshResponse, RegisterResponse } from "./types"
-import { getCookieValue } from "../../csrf"
 
 export function useLogin() {
   const setAuth = useAuthStore((state) => state.setAuth)

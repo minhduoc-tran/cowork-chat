@@ -6,6 +6,7 @@ export const vi = {
     sent: "Đã gửi",
     junk: "Rác",
     trash: "Thùng rác",
+    requests: "Lời mời",
   },
   profile: {
     title: "Thông tin tài khoản",
@@ -58,8 +59,32 @@ export const vi = {
     yesterday: "Hôm qua",
     daysAgo: "{{count}} ngày trước",
   },
+  addFriend: {
+    title: "Thêm bạn",
+    searchPlaceholder: "Nhập email để tìm kiếm...",
+    searching: "Đang tìm...",
+    notFound: "Không tìm thấy người dùng",
+    alreadyFriend: "Đã là bạn bè",
+    sendRequest: "Kết bạn",
+    requestSent: "Đã gửi lời mời",
+    sending: "Đang gửi...",
+    yourself: "Không thể kết bạn với chính mình",
+  },
+  requests: {
+    received: "Lời mời nhận được",
+    sent: "Lời mời đã gửi",
+    accept: "Chấp nhận",
+    reject: "Từ chối",
+    pending: "Đang chờ",
+    noReceived: "Không có lời mời nào",
+    noSent: "Chưa gửi lời mời nào",
+  },
   language: {
     vi: "Tiếng Việt",
     en: "English",
+  },
+  socket: {
+    friendRequestReceived: "{{name}} đã gửi lời mời kết bạn",
+    friendRequestAccepted: "{{name}} đã chấp nhận lời mời kết bạn",
   },
 } as const

@@ -7,6 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 router.get("/", friendController.listFriends);
 router.get("/requests/pending", friendController.listPendingRequests);
+router.get("/requests/sent", friendController.listSentRequests);
 router.post("/requests", friendController.createRequest);
 router.post("/requests/:requestId/accept", friendController.acceptRequest);
 router.post("/requests/:requestId/reject", friendController.rejectRequest);

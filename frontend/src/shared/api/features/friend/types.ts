@@ -20,3 +20,22 @@ export interface FriendshipItem {
 export interface FriendListResponse {
   friends: FriendshipItem[]
 }
+
+export interface FriendRequest {
+  id: number
+  senderId: number
+  receiverId: number
+  status: string
+  createdAt: string
+  updatedAt: string
+  sender?: FriendUser
+  receiver?: FriendUser
+}
+
+export interface PendingRequestsResponse {
+  requests: FriendRequest[]
+}
+
+export interface SentRequestsResponse {
+  requests: FriendRequest[]
+}
