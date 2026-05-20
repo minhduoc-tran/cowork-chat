@@ -14,6 +14,9 @@ export interface ConversationMember {
   joinedAt: string
   leftAt: string | null
   lastReadMessageId: number | null
+  displayName: string
+  avatar: string | null
+  isOnline: boolean
 }
 
 export interface ConversationMessage {
@@ -29,6 +32,11 @@ export interface ConversationMessage {
   updatedAt: string
 }
 
+export interface ConversationMessageWithReply {
+  message: ConversationMessage
+  replyTo: ConversationMessage | null
+}
+
 export interface ConversationListItem {
   conversation: Conversation
   members: ConversationMember[]
@@ -37,4 +45,8 @@ export interface ConversationListItem {
 
 export interface ConversationListResponse {
   conversations: ConversationListItem[]
+}
+
+export interface ConversationMessageListResponse {
+  messages: Array<ConversationMessage | ConversationMessageWithReply>
 }

@@ -4,7 +4,8 @@ import {
   conversationsTable,
   db,
   friendshipsTable,
-  messagesTable
+  messagesTable,
+  usersTable
 } from "../drizzle";
 import { ApiError } from "../utils/api-error";
 import { socketEmitter } from "../socket/socket-emitter";
@@ -131,13 +132,19 @@ async function listUserConversations(userId: number) {
   const allMembers = await db
     .select({
       member: conversationMembersTable,
-      conversation: conversationsTable
+      conversation: conversationsTable,
+      user: {
+        displayName: usersTable.displayName,
+        avatar: usersTable.avatar,
+        isOnline: usersTable.isOnline
+      }
     })
     .from(conversationMembersTable)
     .innerJoin(
       conversationsTable,
       eq(conversationMembersTable.conversationId, conversationsTable.id)
     )
+    .innerJoin(usersTable, eq(conversationMembersTable.userId, usersTable.id))
     .where(
       and(
         inArray(conversationMembersTable.conversationId, conversationIds),
@@ -175,7 +182,12 @@ async function listUserConversations(userId: number) {
   const conversations = memberships.map(m => ({
     conversation: m.conversation,
     members:
-      membersByConversation.get(m.conversation.id)?.map(r => r.member) ?? [],
+      membersByConversation.get(m.conversation.id)?.map(r => ({
+        ...r.member,
+        displayName: r.user.displayName,
+        avatar: r.user.avatar,
+        isOnline: r.user.isOnline
+      })) ?? [],
     lastMessage:
       lastMessageByConversation.get(m.conversation.id)?.message ?? null
   }));
@@ -273,10 +285,54 @@ async function createGroupConversation(input: {
   return result;
 }
 
+async function markConversationAsRead(conversationId: number, userId: number) {
+  // Get the latest message id in this conversation
+  const [latestMessage] = await db
+    .select({ id: messagesTable.id })
+    .from(messagesTable)
+    .where(eq(messagesTable.conversationId, conversationId))
+    .orderBy(desc(messagesTable.id))
+    .limit(1);
+
+  if (!latestMessage) return null;
+
+  // Get current lastReadMessageId
+  const member = await db.query.conversationMembersTable.findFirst({
+    where: and(
+      eq(conversationMembersTable.conversationId, conversationId),
+      eq(conversationMembersTable.userId, userId),
+      isNull(conversationMembersTable.leftAt)
+    )
+  });
+
+  if (!member) return null;
+
+  // Only update if there are new unread messages
+  if (
+    member.lastReadMessageId !== null &&
+    member.lastReadMessageId >= latestMessage.id
+  ) {
+    return null;
+  }
+
+  await db
+    .update(conversationMembersTable)
+    .set({ lastReadMessageId: latestMessage.id })
+    .where(
+      and(
+        eq(conversationMembersTable.conversationId, conversationId),
+        eq(conversationMembersTable.userId, userId)
+      )
+    );
+
+  return { conversationId, userId, lastReadMessageId: latestMessage.id };
+}
+
 export const conversationService = {
   createGroupConversation,
   findDirectConversationBetweenUsers,
   createDirectConversation,
   ensureActiveConversationMember,
-  listUserConversations
+  listUserConversations,
+  markConversationAsRead
 };

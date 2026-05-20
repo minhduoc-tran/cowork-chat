@@ -3,6 +3,7 @@ import type {
   ConversationCreatedPayload,
   FriendRequestAcceptedPayload,
   FriendRequestReceivedPayload,
+  MessageReadPayload,
   MessageReceivedPayload,
   ViewerScopedPresencePayload,
   TypingUpdatedPayload
@@ -48,6 +49,8 @@ export const socketEmitter = {
       .forEach(userId => {
         io.to(`user:${userId}`).emit("message.received", payload);
       });
+    // Also notify sender via user room (for sidebar/conversation list updates)
+    io.to(`user:${senderId}`).emit("message.received", payload);
   },
 
   emitPresenceUpdated(viewerPayloads: ViewerScopedPresencePayload[]) {
@@ -70,5 +73,20 @@ export const socketEmitter = {
     }
 
     io.emit("typing.updated", payload);
+  },
+
+  emitMessageRead(
+    conversationId: number,
+    readerSocketId: string | null,
+    payload: MessageReadPayload
+  ) {
+    const io = getSocketServer().to(`conversation:${conversationId}`);
+
+    if (readerSocketId) {
+      io.except(readerSocketId).emit("message.read", payload);
+      return;
+    }
+
+    io.emit("message.read", payload);
   }
 };

@@ -20,13 +20,19 @@ export type {
   RegisterResponse,
 } from "./features/auth/types"
 export { conversationApi } from "./features/conversation/api"
-export { useConversations } from "./features/conversation/hooks"
+export {
+  useConversationMessages,
+  useConversations,
+  useDirectConversation,
+} from "./features/conversation/hooks"
 export type {
   Conversation,
   ConversationListItem,
   ConversationListResponse,
   ConversationMember,
   ConversationMessage,
+  ConversationMessageListResponse,
+  ConversationMessageWithReply,
 } from "./features/conversation/types"
 export { friendApi } from "./features/friend/api"
 export {

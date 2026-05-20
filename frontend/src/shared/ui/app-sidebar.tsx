@@ -6,7 +6,6 @@ import {
   FileIcon,
   MessageCircleIcon,
   SendIcon,
-  SquarePenIcon,
   Trash2Icon,
   UserPlusIcon,
   UsersIcon,
@@ -105,9 +104,57 @@ function getConversationDisplayName(
   if (item.conversation.type === "group") {
     return item.conversation.name || "Nhóm không tên"
   }
-  // Direct: tìm member khác mình (chỉ có userId, chưa có displayName từ API)
+  // Direct: tìm member khác mình
   const otherMember = item.members.find((m) => m.userId !== currentUserId)
-  return otherMember ? `User #${otherMember.userId}` : "Cuộc trò chuyện"
+  return otherMember?.displayName || "Cuộc trò chuyện"
+}
+
+function getConversationAvatar(
+  item: ConversationListItem,
+  currentUserId: number | undefined
+): string | null {
+  if (item.conversation.type === "group") {
+    return null
+  }
+  const otherMember = item.members.find((m) => m.userId !== currentUserId)
+  return otherMember?.avatar || null
+}
+
+function getConversationOnlineStatus(
+  item: ConversationListItem,
+  currentUserId: number | undefined
+): boolean {
+  if (item.conversation.type !== "direct") {
+    return false
+  }
+
+  const otherMember = item.members.find((m) => m.userId !== currentUserId)
+  return otherMember?.isOnline ?? false
+}
+
+function getConversationInitials(
+  item: ConversationListItem,
+  currentUserId: number | undefined
+): string {
+  const name = getConversationDisplayName(item, currentUserId)
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+}
+
+function getConversationLink(
+  item: ConversationListItem,
+  currentUserId: number | undefined
+): string {
+  if (item.conversation.type === "direct") {
+    const otherMember = item.members.find((m) => m.userId !== currentUserId)
+    return otherMember ? `/chat/${otherMember.userId}` : "/conversations"
+  }
+  return `/chat/${item.conversation.id}`
 }
 
 function ConversationListSkeleton() {
@@ -147,35 +194,73 @@ function ConversationsPanel({
   return (
     <>
       {conversationsData.conversations.map((item) => (
-        <a
-          href="#"
+        <Link
+          to={getConversationLink(
+            item,
+            currentUserId ? Number(currentUserId) : undefined
+          )}
           key={item.conversation.id}
-          className="flex flex-col items-start gap-1.5 border-b p-4 text-sm leading-tight last:border-b-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="flex items-start gap-3 border-b p-4 text-sm leading-tight last:border-b-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <div className="flex w-full items-center gap-2">
-            <span className="truncate font-medium">
-              {getConversationDisplayName(
+          <div className="relative mt-0.5 shrink-0">
+            <Avatar>
+              {getConversationAvatar(
                 item,
                 currentUserId ? Number(currentUserId) : undefined
+              ) ? (
+                <AvatarImage
+                  src={
+                    getConversationAvatar(
+                      item,
+                      currentUserId ? Number(currentUserId) : undefined
+                    )!
+                  }
+                />
+              ) : null}
+              <AvatarFallback>
+                {getConversationInitials(
+                  item,
+                  currentUserId ? Number(currentUserId) : undefined
+                )}
+              </AvatarFallback>
+            </Avatar>
+            {getConversationOnlineStatus(
+              item,
+              currentUserId ? Number(currentUserId) : undefined
+            ) && (
+              <span
+                data-slot="conversation-online-indicator"
+                className="absolute right-0 bottom-0 size-3 rounded-full border-2 border-sidebar bg-emerald-500"
+                aria-label="Online"
+              />
+            )}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex w-full items-center gap-2">
+              <span className="truncate font-medium">
+                {getConversationDisplayName(
+                  item,
+                  currentUserId ? Number(currentUserId) : undefined
+                )}
+              </span>
+              {item.lastMessage && (
+                <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                  {formatMessageDate(item.lastMessage.createdAt, t)}
+                </span>
               )}
-            </span>
+            </div>
             {item.lastMessage && (
-              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                {formatMessageDate(item.lastMessage.createdAt, t)}
+              <span className="line-clamp-1 min-w-0 text-xs text-muted-foreground">
+                {item.lastMessage.content || t("sidebar.systemMessage")}
+              </span>
+            )}
+            {!item.lastMessage && (
+              <span className="text-xs text-muted-foreground">
+                {t("sidebar.noMessages")}
               </span>
             )}
           </div>
-          {item.lastMessage && (
-            <span className="line-clamp-1 min-w-0 text-xs text-muted-foreground">
-              {item.lastMessage.content || t("sidebar.systemMessage")}
-            </span>
-          )}
-          {!item.lastMessage && (
-            <span className="text-xs text-muted-foreground">
-              {t("sidebar.noMessages")}
-            </span>
-          )}
-        </a>
+        </Link>
       ))}
     </>
   )
@@ -198,8 +283,8 @@ function FriendsPanel() {
   return (
     <>
       {friendsData.friends.map((item) => (
-        <a
-          href="#"
+        <Link
+          to={`/chat/${item.friend.id}`}
           key={item.id}
           className="flex items-center gap-3 border-b p-4 text-sm last:border-b-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
@@ -227,7 +312,7 @@ function FriendsPanel() {
             )}
             aria-label={item.friend.isOnline ? "Online" : "Offline"}
           />
-        </a>
+        </Link>
       ))}
     </>
   )
@@ -347,9 +432,16 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
               type="button"
               onClick={() => setIsAddFriendOpen(true)}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              aria-label={t("sidebar.newChat")}
+              aria-label={t("sidebar.addFriend")}
             >
-              <SquarePenIcon className="size-4" />
+              <UserPlusIcon className="size-4" />
+            </button>
+            <button
+              type="button"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              aria-label={t("sidebar.createGroup")}
+            >
+              <UsersIcon className="size-4" />
             </button>
           </div>
         </SidebarHeader>

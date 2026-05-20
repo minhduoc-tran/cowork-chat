@@ -143,15 +143,15 @@ export function RequestsPage() {
   const subPath = location.pathname
 
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="border-b px-6 py-4">
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="shrink-0 border-b px-6 py-4">
         <h1 className="text-lg font-semibold">
           {subPath === "/requests/sent"
             ? t("requests.sent")
             : t("requests.received")}
         </h1>
       </header>
-      <div className="flex-1">
+      <div className="min-h-0 flex-1 overflow-auto">
         {subPath === "/requests/sent" ? (
           <SentRequestsContent />
         ) : (

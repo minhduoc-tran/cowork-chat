@@ -87,4 +87,12 @@ export const en = {
     friendRequestReceived: "{{name}} sent you a friend request",
     friendRequestAccepted: "{{name}} accepted your friend request",
   },
+  chat: {
+    selectFriend: "Select a friend to start chatting",
+    online: "Online",
+    offline: "Offline",
+    loading: "Loading messages...",
+    noMessages: "No messages yet. Say hello!",
+    inputPlaceholder: "Type a message...",
+  },
 } as const

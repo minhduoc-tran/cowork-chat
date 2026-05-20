@@ -87,4 +87,12 @@ export const vi = {
     friendRequestReceived: "{{name}} đã gửi lời mời kết bạn",
     friendRequestAccepted: "{{name}} đã chấp nhận lời mời kết bạn",
   },
+  chat: {
+    selectFriend: "Chọn một người bạn để bắt đầu trò chuyện",
+    online: "Đang hoạt động",
+    offline: "Ngoại tuyến",
+    loading: "Đang tải tin nhắn...",
+    noMessages: "Chưa có tin nhắn. Hãy gửi lời chào!",
+    inputPlaceholder: "Nhập tin nhắn...",
+  },
 } as const

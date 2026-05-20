@@ -1,9 +1,11 @@
 import { createBrowserRouter, Navigate } from "react-router-dom"
 
 import { LoginPage, RegisterPage } from "@/features/auth"
+import { ChatView } from "@/features/chat"
 import { HomeScreen, RequestsPage } from "@/features/home"
 
 import { AppLayout } from "../layouts/app-layout"
+
 import { ProtectedRoute } from "./protected-route"
 import { PublicRoute } from "./public-route"
 
@@ -54,6 +56,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <AppLayout>
           <RequestsPage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/chat/:userId",
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <ChatView />
         </AppLayout>
       </ProtectedRoute>
     ),

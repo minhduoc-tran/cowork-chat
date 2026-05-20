@@ -82,6 +82,34 @@ export function createHttpServer() {
           return;
         }
 
+        // Auto-mark as read for the sender
+        await conversationService.markConversationAsRead(
+          result.conversation.id,
+          socket.data.userId
+        );
+
+        // Auto-mark as read for recipients who are currently viewing this conversation
+        const otherMembers = result.members.filter(
+          m => m.userId !== socket.data.userId
+        );
+        for (const member of otherMembers) {
+          const memberActiveConversation =
+            presenceState.getEffectiveActiveConversation(member.userId);
+          if (memberActiveConversation === result.conversation.id) {
+            const readResult = await conversationService.markConversationAsRead(
+              result.conversation.id,
+              member.userId
+            );
+            if (readResult) {
+              socketEmitter.emitMessageRead(
+                result.conversation.id,
+                null,
+                readResult
+              );
+            }
+          }
+        }
+
         socketEmitter.emitConversationMessage(
           result.conversation.id,
           result.members.map(m => m.userId),
@@ -99,6 +127,36 @@ export function createHttpServer() {
             replyTo: result.replyTo
           }
         );
+      } catch (error) {
+        const err = error as ApiError;
+        socket.emit("error", { message: err.message });
+      }
+    });
+
+    socket.on("message.read", async payload => {
+      try {
+        if (typeof payload.conversationId !== "number") {
+          socket.emit("error", { message: "Invalid read payload" });
+          return;
+        }
+
+        await conversationService.ensureActiveConversationMember(
+          payload.conversationId,
+          socket.data.userId
+        );
+
+        const readResult = await conversationService.markConversationAsRead(
+          payload.conversationId,
+          socket.data.userId
+        );
+
+        if (readResult) {
+          socketEmitter.emitMessageRead(
+            payload.conversationId,
+            socket.id,
+            readResult
+          );
+        }
       } catch (error) {
         const err = error as ApiError;
         socket.emit("error", { message: err.message });
@@ -154,6 +212,22 @@ export async function registerSocketConnectionHandlers(socket: Socket) {
       socket.id,
       payload.conversationId
     );
+
+    // Mark messages as read when entering a conversation
+    if (payload.conversationId !== null) {
+      const readResult = await conversationService.markConversationAsRead(
+        payload.conversationId,
+        socket.data.userId
+      );
+
+      if (readResult) {
+        socketEmitter.emitMessageRead(
+          payload.conversationId,
+          socket.id,
+          readResult
+        );
+      }
+    }
 
     if (previous.previousConversationId !== null) {
       const changed = presenceState.stopTyping(
