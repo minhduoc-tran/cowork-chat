@@ -93,6 +93,9 @@ export const vi = {
     offline: "Ngoại tuyến",
     loading: "Đang tải tin nhắn...",
     noMessages: "Chưa có tin nhắn. Hãy gửi lời chào!",
+    replyAction: "Trả lời",
+    replyingTo: "Trả lời {{name}}",
+    messageUnavailable: "Tin nhắn không khả dụng",
     inputPlaceholder: "Nhập tin nhắn...",
   },
 } as const

@@ -32,9 +32,21 @@ export interface ConversationMessage {
   updatedAt: string
 }
 
+export interface ConversationMessageReplyPreview {
+  id: number
+  content: string | null
+  senderId: number
+  senderName: string
+  createdAt: string
+}
+
 export interface ConversationMessageWithReply {
   message: ConversationMessage
-  replyTo: ConversationMessage | null
+  replyTo: ConversationMessageReplyPreview | null
+}
+
+export interface ConversationMessageRecord extends ConversationMessage {
+  replyTo: ConversationMessageReplyPreview | null
 }
 
 export interface ConversationListItem {

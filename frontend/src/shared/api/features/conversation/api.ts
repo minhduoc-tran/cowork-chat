@@ -7,6 +7,7 @@ import type {
   ConversationListResponse,
   ConversationMessage,
   ConversationMessageListResponse,
+  ConversationMessageRecord,
   ConversationMessageWithReply,
 } from "./types"
 
@@ -19,8 +20,12 @@ function getConversationMessagesRoute(conversationId: number) {
 
 function unwrapMessage(
   item: ConversationMessage | ConversationMessageWithReply
-): ConversationMessage {
-  return "message" in item ? item.message : item
+): ConversationMessageRecord {
+  if ("message" in item) {
+    return { ...item.message, replyTo: item.replyTo }
+  }
+
+  return { ...item, replyTo: null }
 }
 
 export const conversationApi = {
@@ -47,11 +52,10 @@ export const conversationApi = {
   listMessages: async (
     conversationId: number,
     limit = 50
-  ): Promise<ConversationMessage[]> => {
-    const res = await apiClient.get<ApiResponse<ConversationMessageListResponse>>(
-      getConversationMessagesRoute(conversationId),
-      { params: { limit } }
-    )
+  ): Promise<ConversationMessageRecord[]> => {
+    const res = await apiClient.get<
+      ApiResponse<ConversationMessageListResponse>
+    >(getConversationMessagesRoute(conversationId), { params: { limit } })
 
     return (res.data.data.messages ?? []).map(unwrapMessage).reverse()
   },

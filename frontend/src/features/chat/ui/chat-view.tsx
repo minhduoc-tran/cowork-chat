@@ -2,20 +2,20 @@ import * as React from "react"
 import {
   CheckCheckIcon,
   CheckIcon,
-  EllipsisIcon,
-  ImageIcon,
-  PaperclipIcon,
+  ReplyIcon,
   SendIcon,
   SmileIcon,
-  StickerIcon,
-  TypeIcon,
+  XIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 
 import { useAuthStore } from "@/features/auth"
 
-import type { ConversationMessage } from "@/shared/api"
+import type {
+  ConversationMessageRecord,
+  ConversationMessageReplyPreview,
+} from "@/shared/api"
 import {
   useConversationMessages,
   useDirectConversation,
@@ -25,6 +25,12 @@ import { getSocket } from "@/shared/lib/socket"
 import { cn } from "@/shared/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { Button } from "@/shared/ui/button"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/shared/ui/context-menu"
 import { ScrollArea } from "@/shared/ui/scroll-area"
 
 function formatTime(dateValue: string | Date | unknown): string {
@@ -37,7 +43,7 @@ function formatTime(dateValue: string | Date | unknown): string {
   })
 }
 
-type ChatMessage = ConversationMessage
+type ChatMessage = ConversationMessageRecord
 
 function getScrollViewport(scrollRoot: HTMLDivElement | null) {
   return scrollRoot?.querySelector(
@@ -62,6 +68,7 @@ function mergeMessages(
         (base) =>
           base.content === message.content &&
           base.senderId === message.senderId &&
+          base.replyToId === message.replyToId &&
           Math.abs(
             new Date(base.createdAt).getTime() -
               new Date(message.createdAt).getTime()
@@ -78,6 +85,43 @@ function mergeMessages(
   )
 }
 
+function hydrateReplyPreviews(
+  messages: ChatMessage[],
+  buildReplyPreview: (message: ChatMessage) => ConversationMessageReplyPreview
+): ChatMessage[] {
+  const messagesById = new Map(messages.map((message) => [message.id, message]))
+
+  return messages.map((message) => {
+    if (message.replyTo || !message.replyToId) {
+      return message
+    }
+
+    const repliedMessage = messagesById.get(message.replyToId)
+
+    if (!repliedMessage) {
+      return message
+    }
+
+    return {
+      ...message,
+      replyTo: buildReplyPreview(repliedMessage),
+    }
+  })
+}
+
+function getMessagePreview(
+  content: string | null,
+  fallback: string,
+  maxLength = 90
+) {
+  const normalized = content?.trim()
+
+  if (!normalized) return fallback
+  if (normalized.length <= maxLength) return normalized
+
+  return `${normalized.slice(0, maxLength).trimEnd()}...`
+}
+
 export function ChatView() {
   const { t } = useTranslation()
   const { userId } = useParams<{ userId: string }>()
@@ -91,7 +135,17 @@ export function ChatView() {
   const [extraMessagesByUser, setExtraMessagesByUser] = React.useState<
     Record<number, ChatMessage[]>
   >({})
+  const [replyDraftState, setReplyDraftState] = React.useState<{
+    userId: number | null
+    message: ChatMessage | null
+  }>({ userId: null, message: null })
+  const [highlightState, setHighlightState] = React.useState<{
+    userId: number | null
+    messageId: number | null
+  }>({ userId: null, messageId: null })
   const scrollRef = React.useRef<HTMLDivElement>(null)
+  const messageRefs = React.useRef<Record<number, HTMLDivElement | null>>({})
+  const highlightTimeoutRef = React.useRef<number | null>(null)
 
   const targetUserId = userId ? Number(userId) : null
   const localConversationId =
@@ -103,12 +157,60 @@ export function ChatView() {
   const { data: fetchedMessages, isLoading: isMessagesLoading } =
     useConversationMessages(activeConversationId)
   const isLoading = isConversationLoading || isMessagesLoading
-  const extraMessages =
-    targetUserId !== null ? (extraMessagesByUser[targetUserId] ?? []) : []
-  const messages = mergeMessages(fetchedMessages ?? [], extraMessages)
+  const mergedMessages = React.useMemo(
+    () =>
+      mergeMessages(
+        fetchedMessages ?? [],
+        targetUserId !== null ? (extraMessagesByUser[targetUserId] ?? []) : []
+      ),
+    [extraMessagesByUser, fetchedMessages, targetUserId]
+  )
   const friend = friendsData?.friends.find(
     (f) => f.friend.id === targetUserId
   )?.friend
+  const replyDraft =
+    replyDraftState.userId === targetUserId ? replyDraftState.message : null
+  const highlightedMessageId =
+    highlightState.userId === targetUserId ? highlightState.messageId : null
+
+  const currentUserId = Number(currentUser?.id)
+
+  const getSenderName = React.useCallback(
+    (message: Pick<ChatMessage, "senderId">) => {
+      if (message.senderId === currentUserId) {
+        return currentUser?.displayName ?? `User #${message.senderId}`
+      }
+
+      return friend?.displayName ?? `User #${message.senderId}`
+    },
+    [currentUser?.displayName, currentUserId, friend?.displayName]
+  )
+
+  const buildReplyPreview = React.useCallback(
+    (message: ChatMessage): ConversationMessageReplyPreview => ({
+      id: message.id,
+      content: message.content,
+      senderId: message.senderId,
+      senderName: getSenderName(message),
+      createdAt: message.createdAt,
+    }),
+    [getSenderName]
+  )
+
+  const messages = React.useMemo(
+    () => hydrateReplyPreviews(mergedMessages, buildReplyPreview),
+    [buildReplyPreview, mergedMessages]
+  )
+
+  const setReplyDraft = React.useCallback(
+    (message: ChatMessage | null) => {
+      setReplyDraftState({
+        userId: targetUserId,
+        message,
+      })
+    },
+    [targetUserId]
+  )
 
   // Get the other member's lastReadMessageId for read receipts
   const apiLastReadId = React.useMemo(() => {
@@ -128,6 +230,41 @@ export function ChatView() {
       ? Math.max(realtimeLastReadId, apiLastReadId)
       : (realtimeLastReadId ?? apiLastReadId)
 
+  React.useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const scrollToMessage = React.useCallback((messageId: number) => {
+    const messageNode = messageRefs.current[messageId]
+
+    if (!messageNode) return
+
+    messageNode.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    })
+    setHighlightState({
+      userId: targetUserId,
+      messageId,
+    })
+
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current)
+    }
+
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightState((current) =>
+        current.userId === targetUserId && current.messageId === messageId
+          ? { userId: targetUserId, messageId: null }
+          : current
+      )
+    }, 1800)
+  }, [targetUserId])
+
   // Listen for incoming messages
   React.useEffect(() => {
     const socket = getSocket()
@@ -135,13 +272,19 @@ export function ChatView() {
 
     const handleMessage = (payload: {
       conversation: { id: number }
-      message: ChatMessage
+      message: Omit<ChatMessage, "replyTo">
+      replyTo: ConversationMessageReplyPreview | null
     }) => {
+      const nextMessage: ChatMessage = {
+        ...payload.message,
+        replyTo: payload.replyTo,
+      }
+
       // Only add if it's for our conversation or from our target user
       if (
         (activeConversationId &&
           payload.conversation.id === activeConversationId) ||
-        payload.message.senderId === targetUserId
+        nextMessage.senderId === targetUserId
       ) {
         if (targetUserId !== null && !localConversationId) {
           setConversationIdsByUser((prev) => ({
@@ -155,34 +298,35 @@ export function ChatView() {
           const currentMessages = prev[targetUserId] ?? []
 
           // If this is our own message echoed back, replace the optimistic one
-          if (payload.message.senderId !== targetUserId) {
+          if (nextMessage.senderId !== targetUserId) {
             const optimisticIndex = currentMessages.findIndex(
               (m) =>
                 m.id > 1_000_000_000 &&
-                m.content === payload.message.content &&
-                m.senderId === payload.message.senderId
+                m.content === nextMessage.content &&
+                m.senderId === nextMessage.senderId &&
+                m.replyToId === nextMessage.replyToId
             )
             if (optimisticIndex !== -1) {
               const updated = [...currentMessages]
-              updated[optimisticIndex] = payload.message
+              updated[optimisticIndex] = nextMessage
               return { ...prev, [targetUserId]: updated }
             }
           }
 
           if (
-            currentMessages.some((message) => message.id === payload.message.id)
+            currentMessages.some((message) => message.id === nextMessage.id)
           ) {
             return prev
           }
 
           return {
             ...prev,
-            [targetUserId]: [...currentMessages, payload.message],
+            [targetUserId]: [...currentMessages, nextMessage],
           }
         })
 
         // Mark as read if the message is from the other user
-        if (payload.message.senderId === targetUserId) {
+        if (nextMessage.senderId === targetUserId) {
           socket.emit("message.read", {
             conversationId: payload.conversation.id,
           })
@@ -244,11 +388,13 @@ export function ChatView() {
       socket.emit("message.send", {
         conversationId: activeConversationId,
         content: trimmed,
+        replyToId: replyDraft?.id,
       })
     } else {
       socket.emit("message.send", {
         targetUserId,
         content: trimmed,
+        replyToId: replyDraft?.id,
       })
     }
 
@@ -258,7 +404,8 @@ export function ChatView() {
       conversationId: activeConversationId ?? 0,
       content: trimmed,
       senderId: Number(currentUser?.id),
-      replyToId: null,
+      replyToId: replyDraft?.id ?? null,
+      replyTo: replyDraft ? buildReplyPreview(replyDraft) : null,
       isEdited: false,
       isDeleted: false,
       createdAt: new Date().toISOString(),
@@ -274,6 +421,7 @@ export function ChatView() {
       }
     })
     setInput("")
+    setReplyDraft(null)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -294,7 +442,7 @@ export function ChatView() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
-      <header className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+      <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4 py-0">
         <Avatar className="h-9 w-9 rounded-full">
           <AvatarImage
             src={friend?.avatar ?? undefined}
@@ -328,45 +476,99 @@ export function ChatView() {
             </div>
           )}
           {messages.map((msg) => {
-            const isMine = msg.senderId === Number(currentUser?.id)
+            const isMine = msg.senderId === currentUserId
             const isRead =
               isMine &&
               otherMemberLastReadId !== null &&
               msg.id <= otherMemberLastReadId
             return (
-              <div
-                key={msg.id}
-                className={cn("flex", isMine ? "justify-end" : "justify-start")}
-              >
-                <div
-                  className={cn(
-                    "max-w-[70%] rounded-2xl px-4 py-2 text-sm",
-                    isMine
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
-                  )}
-                >
-                  <p className="wrap-break-word whitespace-pre-wrap">
-                    {msg.content}
-                  </p>
+              <ContextMenu key={msg.id}>
+                <ContextMenuTrigger asChild>
                   <div
+                    ref={(node) => {
+                      messageRefs.current[msg.id] = node
+                    }}
                     className={cn(
-                      "mt-1 flex items-center gap-1 text-[10px]",
-                      isMine
-                        ? "text-primary-foreground/70"
-                        : "text-muted-foreground"
+                      "flex scroll-mt-24 rounded-3xl transition-shadow",
+                      isMine ? "justify-end" : "justify-start",
+                      highlightedMessageId === msg.id &&
+                        "ring-2 ring-primary/35 ring-offset-2 ring-offset-background"
                     )}
                   >
-                    {formatTime(msg.createdAt)}
-                    {isMine &&
-                      (isRead ? (
-                        <CheckCheckIcon className="size-3.5" />
-                      ) : (
-                        <CheckIcon className="size-3.5" />
-                      ))}
+                    <div
+                      className={cn(
+                        "max-w-[70%] rounded-2xl px-4 py-2 text-sm",
+                        isMine
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-foreground"
+                      )}
+                    >
+                      {msg.replyTo && (
+                        <button
+                          type="button"
+                          onClick={() => scrollToMessage(msg.replyTo!.id)}
+                          className={cn(
+                            "mb-2 block w-full rounded-lg border-l-2 px-3 py-2 text-left transition-colors",
+                            isMine
+                              ? "border-primary-foreground/55 bg-primary-foreground/10 hover:bg-primary-foreground/15"
+                              : "border-primary/55 bg-background/70 hover:bg-background"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "truncate text-[11px] font-semibold",
+                              isMine
+                                ? "text-primary-foreground/85"
+                                : "text-primary"
+                            )}
+                          >
+                            {msg.replyTo.senderName}
+                          </div>
+                          <div
+                            className={cn(
+                              "truncate text-[11px]",
+                              isMine
+                                ? "text-primary-foreground/70"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {getMessagePreview(
+                              msg.replyTo.content,
+                              t("chat.messageUnavailable")
+                            )}
+                          </div>
+                        </button>
+                      )}
+
+                      <p className="wrap-break-word whitespace-pre-wrap">
+                        {msg.content}
+                      </p>
+                      <div
+                        className={cn(
+                          "mt-1 flex items-center gap-1 text-[10px]",
+                          isMine
+                            ? "text-primary-foreground/70"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {formatTime(msg.createdAt)}
+                        {isMine &&
+                          (isRead ? (
+                            <CheckCheckIcon className="size-3.5" />
+                          ) : (
+                            <CheckIcon className="size-3.5" />
+                          ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-40">
+                  <ContextMenuItem onSelect={() => setReplyDraft(msg)}>
+                    <ReplyIcon className="size-4" />
+                    {t("chat.replyAction")}
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             )
           })}
         </div>
@@ -374,44 +576,34 @@ export function ChatView() {
 
       {/* Input */}
       <div className="shrink-0 border-t">
-        {/* Toolbar */}
-        <div className="flex items-center gap-1 border-b px-3 py-1.5">
-          <button
-            type="button"
-            className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Sticker"
-          >
-            <StickerIcon className="size-4" />
-          </button>
-          <button
-            type="button"
-            className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Image"
-          >
-            <ImageIcon className="size-4" />
-          </button>
-          <button
-            type="button"
-            className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Attach file"
-          >
-            <PaperclipIcon className="size-4" />
-          </button>
-          <button
-            type="button"
-            className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Format"
-          >
-            <TypeIcon className="size-4" />
-          </button>
-          <button
-            type="button"
-            className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="More"
-          >
-            <EllipsisIcon className="size-4" />
-          </button>
-        </div>
+        {replyDraft && (
+          <div className="flex items-start gap-3 border-b bg-muted/35 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => scrollToMessage(replyDraft.id)}
+              className="min-w-0 flex-1 rounded-md border-l-2 border-primary/60 px-3 py-1.5 text-left transition-colors hover:bg-background/80"
+            >
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                <ReplyIcon className="size-3.5" />
+                {t("chat.replyingTo", { name: getSenderName(replyDraft) })}
+              </div>
+              <div className="truncate pt-0.5 text-sm text-foreground">
+                {getMessagePreview(
+                  replyDraft.content,
+                  t("chat.messageUnavailable")
+                )}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReplyDraft(null)}
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              aria-label="Cancel reply"
+            >
+              <XIcon className="size-4" />
+            </button>
+          </div>
+        )}
         {/* Message input */}
         <div className="flex items-center gap-2 px-3 py-2.5">
           <input

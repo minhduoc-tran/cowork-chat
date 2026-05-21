@@ -32,6 +32,8 @@ export type {
   ConversationMember,
   ConversationMessage,
   ConversationMessageListResponse,
+  ConversationMessageRecord,
+  ConversationMessageReplyPreview,
   ConversationMessageWithReply,
 } from "./features/conversation/types"
 export { friendApi } from "./features/friend/api"

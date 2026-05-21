@@ -422,7 +422,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
 
       {/* Content panel */}
       <div className="hidden min-w-0 flex-1 flex-col bg-sidebar md:flex">
-        <SidebarHeader className="border-b p-4">
+        <SidebarHeader className="h-16 justify-center border-b px-4 py-0">
           <div className="flex w-full items-center gap-2">
             <SidebarInput
               placeholder={t("sidebar.search")}

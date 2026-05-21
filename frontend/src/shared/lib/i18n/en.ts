@@ -93,6 +93,9 @@ export const en = {
     offline: "Offline",
     loading: "Loading messages...",
     noMessages: "No messages yet. Say hello!",
+    replyAction: "Reply",
+    replyingTo: "Reply to {{name}}",
+    messageUnavailable: "Message unavailable",
     inputPlaceholder: "Type a message...",
   },
 } as const
