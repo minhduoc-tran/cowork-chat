@@ -106,6 +106,20 @@ async function ensureActiveConversationMember(
   return member;
 }
 
+async function listActiveConversationMemberIds(conversationId: number) {
+  const activeMembers = await db
+    .select({ userId: conversationMembersTable.userId })
+    .from(conversationMembersTable)
+    .where(
+      and(
+        eq(conversationMembersTable.conversationId, conversationId),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+
+  return activeMembers.map(member => member.userId);
+}
+
 async function listUserConversations(userId: number) {
   const memberships = await db
     .select({
@@ -557,6 +571,7 @@ export const conversationService = {
   findDirectConversationBetweenUsers,
   createDirectConversation,
   ensureActiveConversationMember,
+  listActiveConversationMemberIds,
   listUserConversations,
   markConversationAsRead,
   getConversationPin,

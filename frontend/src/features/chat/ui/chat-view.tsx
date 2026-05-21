@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import {
+  ArrowDown,
   CheckCheckIcon,
   CheckIcon,
   PinIcon,
@@ -15,6 +16,10 @@ import { useParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { useAuthStore } from "@/features/auth"
+import {
+  getScrollHintMode,
+  shouldMarkUnreadBelow,
+} from "@/features/chat/model/new-message-hint"
 
 import type {
   ConversationMessageRecord,
@@ -212,11 +217,16 @@ export function ChatView() {
   const lastMessageIdRef = React.useRef<number | null>(null)
   const firstMessageIdRef = React.useRef<number | null>(null)
 
-  const [currentConversationId, setCurrentConversationId] = React.useState<number | null>(null)
   const [socketPin, setSocketPin] = React.useState<ConversationPin | null | undefined>(undefined)
   const [pinConfirmOpen, setPinConfirmOpen] = React.useState(false)
   const [unpinConfirmOpen, setUnpinConfirmOpen] = React.useState(false)
   const [selectedMessage, setSelectedMessage] = React.useState<ChatMessage | null>(null)
+  const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
+  const [isOtherUserTyping, setIsOtherUserTyping] = React.useState(false)
+  const [hasUnreadBelow, setHasUnreadBelow] = React.useState(false)
+
+  const isTypingRef = React.useRef(false)
+  const typingTimeoutRef = React.useRef<number | null>(null)
 
   const targetUserId = userId ? Number(userId) : null
   const localConversationId =
@@ -225,14 +235,6 @@ export function ChatView() {
     useDirectConversation(targetUserId)
   const activeConversationId =
     localConversationId ?? directConversation?.conversation.id ?? null
-
-  if (activeConversationId !== currentConversationId) {
-    setCurrentConversationId(activeConversationId)
-    setSocketPin(undefined)
-    setPinConfirmOpen(false)
-    setUnpinConfirmOpen(false)
-    setSelectedMessage(null)
-  }
 
   const {
     data: fetchedMessagesData,
@@ -321,6 +323,51 @@ export function ChatView() {
     realtimeLastReadId !== null && apiLastReadId !== null
       ? Math.max(realtimeLastReadId, apiLastReadId)
       : (realtimeLastReadId ?? apiLastReadId)
+  const scrollHintMode = getScrollHintMode({
+    showScrollHint: showScrollToBottom,
+    hasUnreadBelow,
+  })
+
+  const stopTyping = React.useCallback(() => {
+    if (typingTimeoutRef.current !== null) {
+      window.clearTimeout(typingTimeoutRef.current)
+      typingTimeoutRef.current = null
+    }
+
+    if (isTypingRef.current && activeConversationId) {
+      const socket = getSocket()
+      if (socket && socket.connected) {
+        socket.emit("typing.stop", { conversationId: activeConversationId })
+      }
+    }
+    isTypingRef.current = false
+  }, [activeConversationId])
+
+  React.useEffect(() => {
+    setSocketPin(undefined)
+    setPinConfirmOpen(false)
+    setUnpinConfirmOpen(false)
+    setSelectedMessage(null)
+    setShowScrollToBottom(false)
+    setIsOtherUserTyping(false)
+    setHasUnreadBelow(false)
+  }, [targetUserId])
+
+  React.useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current !== null) {
+        window.clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = null
+      }
+      if (isTypingRef.current && activeConversationId) {
+        const socket = getSocket()
+        if (socket && socket.connected) {
+          socket.emit("typing.stop", { conversationId: activeConversationId })
+        }
+      }
+      isTypingRef.current = false
+    }
+  }, [activeConversationId])
 
   React.useEffect(() => {
     return () => {
@@ -379,6 +426,16 @@ export function ChatView() {
     },
     [targetUserId]
   )
+
+  const handleScrollToBottom = React.useCallback(() => {
+    const viewport = getScrollViewport(scrollRef.current)
+    if (!viewport) return
+    setHasUnreadBelow(false)
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior: "smooth",
+    })
+  }, [])
 
   // Listen for incoming messages
   React.useEffect(() => {
@@ -514,15 +571,40 @@ export function ChatView() {
       })
     }
 
+    const handleTypingUpdated = (payload: {
+      conversationId: number
+      userId: number
+      isTyping: boolean
+    }) => {
+      if (payload.userId !== targetUserId) return
+
+      if (targetUserId !== null && !localConversationId) {
+        setConversationIdsByUser((prev) =>
+          prev[targetUserId] === payload.conversationId
+            ? prev
+            : { ...prev, [targetUserId]: payload.conversationId }
+        )
+      }
+
+      if (
+        activeConversationId === null ||
+        payload.conversationId === activeConversationId
+      ) {
+        setIsOtherUserTyping(payload.isTyping)
+      }
+    }
+
     socket.on("message.received", handleMessage)
     socket.on("message.read", handleMessageRead)
     socket.on("message.updated", handleMessageUpdated)
     socket.on("conversation.pin.updated", handlePinUpdated)
+    socket.on("typing.updated", handleTypingUpdated)
     return () => {
       socket.off("message.received", handleMessage)
       socket.off("message.read", handleMessageRead)
       socket.off("message.updated", handleMessageUpdated)
       socket.off("conversation.pin.updated", handlePinUpdated)
+      socket.off("typing.updated", handleTypingUpdated)
     }
   }, [
     activeConversationId,
@@ -542,6 +624,14 @@ export function ChatView() {
       lastScrollHeightRef.current = viewport.scrollHeight
       lastScrollTopRef.current = viewport.scrollTop
 
+      // Show/hide scroll to bottom button
+      const isNearBottom =
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 300
+      setShowScrollToBottom(!isNearBottom)
+      if (isNearBottom) {
+        setHasUnreadBelow(false)
+      }
+
       // Trigger fetchNextPage when scrolling near top (scrollTop < 100)
       if (
         viewport.scrollTop < 100 &&
@@ -551,6 +641,11 @@ export function ChatView() {
         void fetchNextPage()
       }
     }
+
+    // Initialize state
+    const isNearBottom =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 300
+    setShowScrollToBottom(!isNearBottom)
 
     viewport.addEventListener("scroll", handleScroll)
     return () => {
@@ -596,15 +691,27 @@ export function ChatView() {
 
     // 2. Determine if a new message was added at the bottom
     const wasNewMessageAdded = lastMsgId !== null && lastMsgId !== prevLastMsgId
+    const wasAtBottom =
+      lastScrollHeightRef.current - lastScrollTopRef.current - viewport.clientHeight < 150
 
     if (wasNewMessageAdded) {
       const isMyMessage = lastMsg.senderId === currentUserId
-      const wasAtBottom =
-        lastScrollHeightRef.current - lastScrollTopRef.current - viewport.clientHeight < 150
+      if (
+        shouldMarkUnreadBelow({
+          wasNewMessageAdded,
+          isMyMessage,
+          wasAtBottom,
+        })
+      ) {
+        setHasUnreadBelow(true)
+      }
 
       if (isMyMessage || wasAtBottom) {
+        setHasUnreadBelow(false)
         viewport.scrollTop = viewport.scrollHeight
       }
+    } else if (isOtherUserTyping && wasAtBottom) {
+      viewport.scrollTop = viewport.scrollHeight
     } else {
       // 3. Prepend anchor: messages changed but last message ID didn't change (older messages prepended)
       const wasPrepended = prevFirstMsgId !== null && firstMsgId !== prevFirstMsgId
@@ -619,7 +726,7 @@ export function ChatView() {
     // Update tracking refs
     lastScrollHeightRef.current = viewport.scrollHeight
     lastScrollTopRef.current = viewport.scrollTop
-  }, [messages, activeConversationId, currentUserId])
+  }, [messages, activeConversationId, currentUserId, isOtherUserTyping])
 
   // Join conversation room, set active conversation, and mark messages as read when entering conversation or on reconnect
   React.useEffect(() => {
@@ -652,6 +759,8 @@ export function ChatView() {
   const handleSend = () => {
     const trimmed = input.trim()
     if (!trimmed || !targetUserId) return
+
+    stopTyping()
 
     const socket = getSocket()
     if (!socket) return
@@ -694,6 +803,34 @@ export function ChatView() {
     })
     setInput("")
     setReplyDraft(null)
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setInput(val)
+
+    if (!activeConversationId) return
+
+    const socket = getSocket()
+    if (!socket) return
+
+    if (val.trim() === "") {
+      stopTyping()
+      return
+    }
+
+    if (!isTypingRef.current) {
+      isTypingRef.current = true
+      socket.emit("typing.start", { conversationId: activeConversationId })
+    }
+
+    if (typingTimeoutRef.current !== null) {
+      window.clearTimeout(typingTimeoutRef.current)
+    }
+
+    typingTimeoutRef.current = window.setTimeout(() => {
+      stopTyping()
+    }, 3500)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -778,8 +915,15 @@ export function ChatView() {
           <div className="truncate text-sm font-semibold">
             {friend?.displayName ?? `User #${targetUserId}`}
           </div>
-          <div className="text-xs text-muted-foreground">
-            {friend?.isOnline ? t("chat.online") : t("chat.offline")}
+          <div className={cn(
+            "text-xs text-muted-foreground transition-all duration-200",
+            isOtherUserTyping && "text-primary font-medium animate-pulse"
+          )}>
+            {isOtherUserTyping
+              ? t("chat.typing", { name: friend?.displayName })
+              : friend?.isOnline
+              ? t("chat.online")
+              : t("chat.offline")}
           </div>
         </div>
       </header>
@@ -1050,13 +1194,40 @@ export function ChatView() {
               </div>
             )
           })}
+
         </div>
+        {scrollHintMode !== "hidden" && (
+          <button
+            type="button"
+            onClick={handleScrollToBottom}
+            className={cn(
+              "absolute bottom-4 right-6 z-10 inline-flex items-center justify-center rounded-full border backdrop-blur-sm shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+              scrollHintMode === "unread"
+                ? "h-10 gap-2 border-primary/30 bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                : "h-10 w-10 bg-background/90 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+            aria-label={t("chat.scrollToBottom") || "Scroll to bottom"}
+          >
+            <ArrowDown className="size-4" />
+            {scrollHintMode === "unread" ? (
+              <span>{t("chat.newMessagesBelow")}</span>
+            ) : null}
+          </button>
+        )}
       </ScrollArea>
 
       {/* Input */}
-      <div className="shrink-0 border-t">
+      <div className={cn("shrink-0", !isOtherUserTyping && "border-t")}>
+        {isOtherUserTyping && (
+          <div className="px-4 pt-2.5 pb-0.5 text-xs font-semibold text-primary animate-pulse animate-in fade-in duration-200">
+            {t("chat.typing", { name: friend?.displayName })}
+          </div>
+        )}
         {replyDraft && (
-          <div className="flex items-start gap-3 border-b bg-muted/35 px-3 py-2">
+          <div className={cn(
+            "flex items-start gap-3 border-b bg-muted/35 px-3 py-2",
+            isOtherUserTyping && "border-t"
+          )}>
             <button
               type="button"
               onClick={() => scrollToMessage(replyDraft.id)}
@@ -1084,11 +1255,14 @@ export function ChatView() {
           </div>
         )}
         {/* Message input */}
-        <div className="flex items-center gap-2 px-3 py-2.5">
+        <div className={cn(
+          "flex items-center gap-2 px-3 py-2.5",
+          isOtherUserTyping && !replyDraft && "border-t"
+        )}>
           <input
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={t("chat.inputPlaceholder")}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"

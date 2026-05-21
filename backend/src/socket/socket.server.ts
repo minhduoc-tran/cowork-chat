@@ -175,6 +175,32 @@ export function getSocketServer() {
   return io;
 }
 
+async function emitTypingUpdatedToRecipients(input: {
+  conversationId: number;
+  senderUserId: number;
+  isTyping: boolean;
+}) {
+  const memberIds = await conversationService.listActiveConversationMemberIds(
+    input.conversationId
+  );
+  const recipientUserIds = memberIds.filter(
+    userId => userId !== input.senderUserId
+  );
+
+  if (recipientUserIds.length === 0) {
+    return;
+  }
+
+  socketEmitter.emitTypingUpdated({
+    recipientUserIds,
+    payload: {
+      conversationId: input.conversationId,
+      userId: input.senderUserId,
+      isTyping: input.isTyping
+    }
+  });
+}
+
 export async function registerSocketConnectionHandlers(socket: Socket) {
   const { firstSocketForUser } = presenceState.addSocket(
     socket.data.userId,
@@ -236,15 +262,11 @@ export async function registerSocketConnectionHandlers(socket: Socket) {
       );
 
       if (changed) {
-        socketEmitter.emitTypingUpdated(
-          previous.previousConversationId,
-          socket.id,
-          {
-            conversationId: previous.previousConversationId,
-            userId: socket.data.userId,
-            isTyping: false
-          }
-        );
+        await emitTypingUpdatedToRecipients({
+          conversationId: previous.previousConversationId,
+          senderUserId: socket.data.userId,
+          isTyping: false
+        });
       }
     }
 
@@ -287,17 +309,17 @@ export async function registerSocketConnectionHandlers(socket: Socket) {
       conversationId: payload.conversationId,
       userId: socket.data.userId,
       onExpire: ({ conversationId, userId }) => {
-        socketEmitter.emitTypingUpdated(conversationId, null, {
+        void emitTypingUpdatedToRecipients({
           conversationId,
-          userId,
+          senderUserId: userId,
           isTyping: false
         });
       }
     });
 
-    socketEmitter.emitTypingUpdated(payload.conversationId, socket.id, {
+    await emitTypingUpdatedToRecipients({
       conversationId: payload.conversationId,
-      userId: socket.data.userId,
+      senderUserId: socket.data.userId,
       isTyping: true
     });
   });
@@ -314,9 +336,9 @@ export async function registerSocketConnectionHandlers(socket: Socket) {
     );
 
     if (changed) {
-      socketEmitter.emitTypingUpdated(payload.conversationId, socket.id, {
+      await emitTypingUpdatedToRecipients({
         conversationId: payload.conversationId,
-        userId: socket.data.userId,
+        senderUserId: socket.data.userId,
         isTyping: false
       });
     }
@@ -336,9 +358,9 @@ export async function registerSocketConnectionHandlers(socket: Socket) {
       );
 
       if (changed) {
-        socketEmitter.emitTypingUpdated(removed.previousConversationId, null, {
+        await emitTypingUpdatedToRecipients({
           conversationId: removed.previousConversationId,
-          userId: removed.userId,
+          senderUserId: removed.userId,
           isTyping: false
         });
       }

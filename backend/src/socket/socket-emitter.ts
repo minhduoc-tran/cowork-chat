@@ -74,19 +74,15 @@ export const socketEmitter = {
     });
   },
 
-  emitTypingUpdated(
-    conversationId: number,
-    senderSocketId: string | null,
-    payload: TypingUpdatedPayload
-  ) {
-    const io = getSocketServer().to(`conversation:${conversationId}`);
+  emitTypingUpdated(input: {
+    recipientUserIds: number[];
+    payload: TypingUpdatedPayload;
+  }) {
+    const io = getSocketServer();
 
-    if (senderSocketId) {
-      io.except(senderSocketId).emit("typing.updated", payload);
-      return;
-    }
-
-    io.emit("typing.updated", payload);
+    input.recipientUserIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("typing.updated", input.payload);
+    });
   },
 
   emitMessageRead(
