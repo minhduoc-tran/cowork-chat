@@ -26,6 +26,13 @@ export interface ConversationMessage {
   type: "text" | "image" | "file" | "system"
   content: string | null
   replyToId: number | null
+  linkPreview?: {
+    url: string
+    siteName: string | null
+    title: string | null
+    description: string | null
+    imageUrl: string | null
+  } | null
   isEdited: boolean
   isDeleted: boolean
   createdAt: string

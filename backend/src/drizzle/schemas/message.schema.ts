@@ -5,13 +5,22 @@ import {
   timestamp,
   text,
   boolean,
-  index
+  index,
+  jsonb
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { usersTable } from "./user.schema";
 import { conversationsTable } from "./conversation.schema";
 import { messageAttachmentsTable } from "./attachment.schema";
 import { messageReactionsTable } from "./reaction.schema";
+
+export interface LinkPreview {
+  url: string;
+  siteName: string | null;
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+}
 
 export const messagesTable = pgTable(
   "messages",
@@ -28,6 +37,7 @@ export const messagesTable = pgTable(
     replyToId: integer("reply_to_id"), // reference to replied message
     isEdited: boolean("is_edited").default(false).notNull(),
     isDeleted: boolean("is_deleted").default(false).notNull(),
+    linkPreview: jsonb("link_preview").$type<LinkPreview>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

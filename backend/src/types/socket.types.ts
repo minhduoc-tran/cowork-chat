@@ -69,3 +69,8 @@ export type MessageReadPayload = {
   userId: number;
   lastReadMessageId: number;
 };
+
+export type MessageUpdatedPayload = {
+  message: Message;
+  replyTo: MessageReplyPreview | null;
+};

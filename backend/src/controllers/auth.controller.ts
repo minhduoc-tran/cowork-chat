@@ -111,7 +111,7 @@ async function refresh(req: Request, res: Response, next: NextFunction) {
       throw ApiError.unauthorized("Refresh token not found");
     }
 
-      const result = await refreshTokenService.rotateRefreshToken(refreshToken);
+    const result = await refreshTokenService.rotateRefreshToken(refreshToken);
 
     if (!result.success) {
       clearAuthCookies(res);

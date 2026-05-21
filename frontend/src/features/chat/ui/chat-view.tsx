@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   CheckCheckIcon,
   CheckIcon,
@@ -41,6 +42,48 @@ function formatTime(dateValue: string | Date | unknown): string {
     hour: "2-digit",
     minute: "2-digit",
   })
+}
+
+/**
+ * Split message text into plain-text and URL segments,
+ * rendering URLs as clickable <a> tags with an underline hover effect.
+ */
+function renderMessageContent(
+  content: string | null,
+  isMine: boolean
+): React.ReactNode {
+  if (!content) return null
+  const urlRegex = /https?:\/\/[^\s]+/gi
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  let key = 0
+  while ((match = urlRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index))
+    }
+    const url = match[0]
+    parts.push(
+      <a
+        key={key++}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "cursor-pointer break-all underline underline-offset-2",
+          isMine ? "text-primary-foreground/90" : "text-primary"
+        )}
+      >
+        {url}
+      </a>
+    )
+    lastIndex = match.index + url.length
+  }
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex))
+  }
+  return parts
 }
 
 type ChatMessage = ConversationMessageRecord
@@ -127,6 +170,7 @@ export function ChatView() {
   const { userId } = useParams<{ userId: string }>()
   const currentUser = useAuthStore((state) => state.user)
   const { data: friendsData } = useFriends()
+  const queryClient = useQueryClient()
 
   const [input, setInput] = React.useState("")
   const [conversationIdsByUser, setConversationIdsByUser] = React.useState<
@@ -238,32 +282,35 @@ export function ChatView() {
     }
   }, [])
 
-  const scrollToMessage = React.useCallback((messageId: number) => {
-    const messageNode = messageRefs.current[messageId]
+  const scrollToMessage = React.useCallback(
+    (messageId: number) => {
+      const messageNode = messageRefs.current[messageId]
 
-    if (!messageNode) return
+      if (!messageNode) return
 
-    messageNode.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    })
-    setHighlightState({
-      userId: targetUserId,
-      messageId,
-    })
+      messageNode.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+      setHighlightState({
+        userId: targetUserId,
+        messageId,
+      })
 
-    if (highlightTimeoutRef.current !== null) {
-      window.clearTimeout(highlightTimeoutRef.current)
-    }
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current)
+      }
 
-    highlightTimeoutRef.current = window.setTimeout(() => {
-      setHighlightState((current) =>
-        current.userId === targetUserId && current.messageId === messageId
-          ? { userId: targetUserId, messageId: null }
-          : current
-      )
-    }, 1800)
-  }, [targetUserId])
+      highlightTimeoutRef.current = window.setTimeout(() => {
+        setHighlightState((current) =>
+          current.userId === targetUserId && current.messageId === messageId
+            ? { userId: targetUserId, messageId: null }
+            : current
+        )
+      }, 1800)
+    },
+    [targetUserId]
+  )
 
   // Listen for incoming messages
   React.useEffect(() => {
@@ -348,13 +395,57 @@ export function ChatView() {
       }
     }
 
+    const handleMessageUpdated = (payload: {
+      message: ChatMessage
+      replyTo: ConversationMessageReplyPreview | null
+    }) => {
+      const updatedMessage: ChatMessage = {
+        ...payload.message,
+        replyTo: payload.replyTo,
+      }
+
+      if (
+        (activeConversationId &&
+          updatedMessage.conversationId === activeConversationId) ||
+        updatedMessage.senderId === targetUserId ||
+        (currentUser && updatedMessage.senderId === Number(currentUser.id))
+      ) {
+        if (targetUserId === null) return
+
+        setExtraMessagesByUser((prev) => {
+          const currentMessages = prev[targetUserId] ?? []
+          const idx = currentMessages.findIndex(
+            (m) => m.id === updatedMessage.id
+          )
+          if (idx !== -1) {
+            const updated = [...currentMessages]
+            updated[idx] = updatedMessage
+            return { ...prev, [targetUserId]: updated }
+          }
+          return prev
+        })
+
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations", activeConversationId, "messages"],
+        })
+      }
+    }
+
     socket.on("message.received", handleMessage)
     socket.on("message.read", handleMessageRead)
+    socket.on("message.updated", handleMessageUpdated)
     return () => {
       socket.off("message.received", handleMessage)
       socket.off("message.read", handleMessageRead)
+      socket.off("message.updated", handleMessageUpdated)
     }
-  }, [activeConversationId, localConversationId, targetUserId])
+  }, [
+    activeConversationId,
+    localConversationId,
+    targetUserId,
+    queryClient,
+    currentUser,
+  ])
 
   // Auto-scroll to the actual Radix viewport after the new message is rendered.
   React.useLayoutEffect(() => {
@@ -541,8 +632,73 @@ export function ChatView() {
                       )}
 
                       <p className="wrap-break-word whitespace-pre-wrap">
-                        {msg.content}
+                        {renderMessageContent(msg.content, isMine)}
                       </p>
+
+                      {msg.linkPreview && (
+                        <a
+                          href={msg.linkPreview.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={cn(
+                            "group mt-2 block cursor-pointer border-l-[3px] pl-3 text-left",
+                            isMine
+                              ? "border-primary-foreground/60"
+                              : "border-primary"
+                          )}
+                        >
+                          <div>
+                            {msg.linkPreview.siteName && (
+                              <div
+                                className={cn(
+                                  "text-[10px] font-bold tracking-wide uppercase",
+                                  isMine
+                                    ? "text-primary-foreground/90"
+                                    : "text-primary"
+                                )}
+                              >
+                                {msg.linkPreview.siteName}
+                              </div>
+                            )}
+                            {msg.linkPreview.title && (
+                              <div
+                                className={cn(
+                                  "mt-0.5 line-clamp-2 text-xs leading-tight font-bold",
+                                  isMine
+                                    ? "text-primary-foreground"
+                                    : "text-foreground"
+                                )}
+                              >
+                                {msg.linkPreview.title}
+                              </div>
+                            )}
+                            {msg.linkPreview.description && (
+                              <div
+                                className={cn(
+                                  "mt-1 line-clamp-3 text-[11px] leading-normal",
+                                  isMine
+                                    ? "text-primary-foreground/80"
+                                    : "text-muted-foreground"
+                                )}
+                              >
+                                {msg.linkPreview.description}
+                              </div>
+                            )}
+                            {msg.linkPreview.imageUrl && (
+                              <div className="mt-2.5 aspect-video w-full max-w-[360px] overflow-hidden rounded-lg">
+                                <img
+                                  src={msg.linkPreview.imageUrl}
+                                  alt={msg.linkPreview.title || "Preview"}
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.parentElement?.remove()
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </a>
+                      )}
                       <div
                         className={cn(
                           "mt-1 flex items-center gap-1 text-[10px]",

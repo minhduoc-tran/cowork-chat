@@ -6,7 +6,8 @@ import type {
   MessageReadPayload,
   MessageReceivedPayload,
   ViewerScopedPresencePayload,
-  TypingUpdatedPayload
+  TypingUpdatedPayload,
+  MessageUpdatedPayload
 } from "../types/socket.types";
 
 export const socketEmitter = {
@@ -51,6 +52,18 @@ export const socketEmitter = {
       });
     // Also notify sender via user room (for sidebar/conversation list updates)
     io.to(`user:${senderId}`).emit("message.received", payload);
+  },
+
+  emitMessageUpdated(
+    conversationId: number,
+    userIds: number[],
+    payload: MessageUpdatedPayload
+  ) {
+    const io = getSocketServer();
+    io.to(`conversation:${conversationId}`).emit("message.updated", payload);
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("message.updated", payload);
+    });
   },
 
   emitPresenceUpdated(viewerPayloads: ViewerScopedPresencePayload[]) {

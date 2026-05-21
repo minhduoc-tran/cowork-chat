@@ -9,6 +9,61 @@ import {
 import type { Message } from "../drizzle/schemas/message.schema";
 import { ApiError } from "../utils/api-error";
 import { conversationService } from "./conversation.service";
+import { extractFirstUrl, unfurlUrl } from "../utils/unfurl.util";
+import { socketEmitter } from "../socket/socket-emitter";
+
+const concurrentUnfurls = new Map<number, number>(); // userId -> count
+
+async function runBackgroundUnfurl(
+  messageId: number,
+  senderId: number,
+  conversationId: number,
+  content: string,
+  memberUserIds: number[],
+  replyPreview: MessageReplyPreview | null
+) {
+  const url = extractFirstUrl(content);
+  if (!url) return;
+
+  const currentCount = concurrentUnfurls.get(senderId) ?? 0;
+  if (currentCount >= 2) {
+    return; // rate limit exceeded
+  }
+
+  concurrentUnfurls.set(senderId, currentCount + 1);
+
+  try {
+    const previewResult = await unfurlUrl(url);
+    if (!previewResult) {
+      return;
+    }
+
+    const [updatedMessage] = await db
+      .update(messagesTable)
+      .set({
+        linkPreview: previewResult,
+        updatedAt: new Date()
+      })
+      .where(eq(messagesTable.id, messageId))
+      .returning();
+
+    if (updatedMessage) {
+      socketEmitter.emitMessageUpdated(conversationId, memberUserIds, {
+        message: updatedMessage,
+        replyTo: replyPreview
+      });
+    }
+  } catch (error) {
+    // Fail silently
+  } finally {
+    const finalCount = concurrentUnfurls.get(senderId) ?? 1;
+    if (finalCount <= 1) {
+      concurrentUnfurls.delete(senderId);
+    } else {
+      concurrentUnfurls.set(senderId, finalCount - 1);
+    }
+  }
+}
 
 export type ListConversationMessagesInput = {
   conversationId: number;
@@ -138,13 +193,18 @@ async function listConversationMessages(input: ListConversationMessagesInput) {
   });
 
   return messages.map(msg =>
-    buildMessageWithReply(msg, msg.replyTo ? {
-      id: msg.replyTo.id,
-      content: msg.replyTo.content,
-      senderId: msg.replyTo.senderId,
-      senderName: msg.replyTo.sender?.displayName ?? "Unknown",
-      createdAt: msg.replyTo.createdAt.toISOString()
-    } : null)
+    buildMessageWithReply(
+      msg,
+      msg.replyTo
+        ? {
+            id: msg.replyTo.id,
+            content: msg.replyTo.content,
+            senderId: msg.replyTo.senderId,
+            senderName: msg.replyTo.sender?.displayName ?? "Unknown",
+            createdAt: msg.replyTo.createdAt.toISOString()
+          }
+        : null
+    )
   );
 }
 
@@ -167,7 +227,10 @@ async function sendConversationTextMessage(
   // Validate replyToId if provided
   let replyPreview: MessageReplyPreview | null = null;
   if (input.replyToId !== undefined) {
-    const validated = await validateReplyToId(input.replyToId, input.conversationId);
+    const validated = await validateReplyToId(
+      input.replyToId,
+      input.conversationId
+    );
     replyPreview = {
       id: validated.replyToMessage.id,
       content: validated.replyToMessage.content,
@@ -198,6 +261,15 @@ async function sendConversationTextMessage(
       updatedAt: createdAt
     })
     .returning();
+
+  void runBackgroundUnfurl(
+    message.id,
+    input.senderId,
+    input.conversationId,
+    input.content,
+    members.map(m => m.userId),
+    replyPreview
+  );
 
   return {
     conversation,
@@ -259,6 +331,15 @@ async function sendDirectTextMessage(input: SendDirectTextMessageInput) {
       updatedAt: createdAt
     })
     .returning();
+
+  void runBackgroundUnfurl(
+    message.id,
+    input.senderId,
+    conversation.id,
+    input.content,
+    members.map(m => m.userId),
+    replyPreview
+  );
 
   return { conversation, members, message, replyTo: replyPreview };
 }
