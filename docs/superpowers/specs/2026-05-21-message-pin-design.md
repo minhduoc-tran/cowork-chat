@@ -21,9 +21,11 @@ When a member opens a conversation:
 3. The banner shows:
    - a pinned label
    - a short preview of the pinned message content
+   - the original sender name
    - who pinned it
    - when it was pinned
 4. Clicking the banner scrolls to the pinned message if that message is loaded in the current message list.
+5. If the pinned message is outside the loaded message window, the client shows a lightweight notice that the message is too old to scroll to from the current view.
 
 When a member opens the context menu on a message:
 
@@ -76,6 +78,12 @@ Unpinning must:
 
 Unpin should be idempotent. Deleting a missing pin should still return success.
 
+### Message Deletion Interaction
+
+If the currently pinned message is deleted, the backend must automatically remove the active pin for that conversation.
+
+This keeps pinned state consistent and prevents the client from holding a banner that points to a deleted message.
+
 ## API Changes
 
 Add conversation-scoped pin endpoints:
@@ -94,6 +102,7 @@ Response shape for both actions should return the current pin state:
 - `id`
 - `content`
 - `senderId`
+- `senderName`
 - `createdAt`
 
 ## Conversation Read Models
@@ -109,7 +118,17 @@ Returned pin payload should include:
 
 - pin metadata from `conversation_pins`
 - preview of the pinned message
+- sender name of the pinned message
 - display name of the user who pinned it
+
+Concrete fields should include:
+
+- `conversationId`
+- `messageId`
+- `pinnedById`
+- `pinnedByName`
+- `pinnedAt`
+- `messagePreview: { id, content, senderId, senderName, createdAt }`
 
 ## Realtime Changes
 
@@ -125,6 +144,8 @@ Payload:
 `pin` uses the same shape as the REST responses. If the conversation becomes unpinned, the payload sends `pin: null`.
 
 This event should be emitted to the conversation room and each active member user room so open chats and sidebars stay in sync.
+
+Automatic unpin caused by message deletion should emit the same event with `pin: null`.
 
 ## Frontend Changes
 
@@ -144,7 +165,7 @@ Render a compact pinned banner below the chat header when `pin` exists.
 Behavior:
 
 - click scrolls to the pinned message
-- if the pinned message is not in the loaded 50-message window, keep the banner visible but do not force a failed scroll
+- if the pinned message is not in the loaded 50-message window, keep the banner visible and show a localized notice that the message is too old to scroll to from the current view
 - keep the preview compact and truncate long text
 - if content is empty, fall back to a localized unavailable label
 
@@ -183,6 +204,7 @@ When `conversation.pin.updated` arrives:
 - Pinning a message from another conversation returns `400`.
 - Pinning a soft-deleted message returns `400`.
 - Client should surface a toast or inline error for failed pin and unpin actions.
+- Clicking a valid pinned banner whose message is not loaded should surface a non-error informational notice instead of failing silently.
 
 ## Testing Strategy
 
@@ -195,6 +217,7 @@ Backend tests should cover:
 - reject pin when caller is not an active member
 - reject pin when message belongs to another conversation
 - reject pin when message is soft-deleted
+- automatically unpin when the pinned message is deleted
 - include pin data in conversation and message read responses
 - emit `conversation.pin.updated` with `pin` and with `null`
 
@@ -205,6 +228,7 @@ Frontend checks should cover:
 - show `Pin message` for non-pinned rows
 - show `Unpin message` for the pinned row
 - require dialog confirmation before mutating
+- show an informational notice when the banner cannot scroll because the pinned message is outside the loaded window
 - replace banner state when realtime pin updates arrive
 
 ## Out of Scope
