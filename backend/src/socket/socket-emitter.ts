@@ -7,7 +7,8 @@ import type {
   MessageReceivedPayload,
   ViewerScopedPresencePayload,
   TypingUpdatedPayload,
-  MessageUpdatedPayload
+  MessageUpdatedPayload,
+  ConversationPinPayload
 } from "../types/socket.types";
 
 export const socketEmitter = {
@@ -101,5 +102,21 @@ export const socketEmitter = {
     }
 
     io.emit("message.read", payload);
+  },
+
+  emitConversationPinUpdated(
+    conversationId: number,
+    userIds: number[],
+    pin: ConversationPinPayload | null
+  ) {
+    const io = getSocketServer();
+    const payload = { conversationId, pin };
+    io.to(`conversation:${conversationId}`).emit(
+      "conversation.pin.updated",
+      payload
+    );
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("conversation.pin.updated", payload);
+    });
   }
 };

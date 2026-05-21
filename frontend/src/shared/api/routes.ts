@@ -10,6 +10,7 @@ export const CONVERSATION_ROUTES = {
   LIST: "/api/v1/conversations",
   MESSAGES: "/api/v1/conversations/:conversationId/messages",
   CREATE_GROUP: "/api/v1/conversations/groups",
+  PIN: "/api/v1/conversations/:conversationId/pin",
 } as const
 
 export const FRIEND_ROUTES = {

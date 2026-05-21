@@ -23,9 +23,10 @@ export const conversationsTable = pgTable("conversations", {
 
 export const conversationsRelations = relations(
   conversationsTable,
-  ({ many }) => ({
+  ({ one, many }) => ({
     members: many(conversationMembersTable),
-    messages: many(messagesTable)
+    messages: many(messagesTable),
+    pin: one(conversationPinsTable)
   })
 );
 
@@ -70,8 +71,52 @@ export const conversationMembersRelations = relations(
   })
 );
 
+export const conversationPinsTable = pgTable(
+  "conversation_pins",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversationsTable.id, { onDelete: "cascade" })
+      .unique(),
+    messageId: integer("message_id")
+      .notNull()
+      .references(() => messagesTable.id, { onDelete: "cascade" }),
+    pinnedById: integer("pinned_by_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+  },
+  table => [
+    index("conversation_pins_conversation_idx").on(table.conversationId),
+    index("conversation_pins_message_idx").on(table.messageId)
+  ]
+);
+
+export const conversationPinsRelations = relations(
+  conversationPinsTable,
+  ({ one }) => ({
+    conversation: one(conversationsTable, {
+      fields: [conversationPinsTable.conversationId],
+      references: [conversationsTable.id]
+    }),
+    message: one(messagesTable, {
+      fields: [conversationPinsTable.messageId],
+      references: [messagesTable.id]
+    }),
+    pinnedBy: one(usersTable, {
+      fields: [conversationPinsTable.pinnedById],
+      references: [usersTable.id]
+    })
+  })
+);
+
 export type Conversation = typeof conversationsTable.$inferSelect;
 export type NewConversation = typeof conversationsTable.$inferInsert;
 export type ConversationMember = typeof conversationMembersTable.$inferSelect;
 export type NewConversationMember =
   typeof conversationMembersTable.$inferInsert;
+export type ConversationPin = typeof conversationPinsTable.$inferSelect;
+export type NewConversationPin = typeof conversationPinsTable.$inferInsert;

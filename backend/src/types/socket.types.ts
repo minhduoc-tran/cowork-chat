@@ -74,3 +74,23 @@ export type MessageUpdatedPayload = {
   message: Message;
   replyTo: MessageReplyPreview | null;
 };
+
+export type ConversationPinPayload = {
+  conversationId: number;
+  messageId: number;
+  pinnedById: number;
+  pinnedByName: string;
+  pinnedAt: string;
+  messagePreview: {
+    id: number;
+    content: string | null;
+    senderId: number;
+    senderName: string;
+    createdAt: string;
+  };
+};
+
+export type ConversationPinUpdatedPayload = {
+  conversationId: number;
+  pin: ConversationPinPayload | null;
+};

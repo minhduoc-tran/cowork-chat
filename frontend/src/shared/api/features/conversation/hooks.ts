@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 
 import { conversationApi } from "./api"
 
@@ -21,9 +21,13 @@ export function useConversationMessages(
   conversationId: number | null,
   limit = 50
 ) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["conversations", conversationId, "messages", limit],
-    queryFn: () => conversationApi.listMessages(conversationId!, limit),
+    queryFn: ({ pageParam }) =>
+      conversationApi.listMessages(conversationId!, limit, pageParam),
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.messages.length > 0 ? lastPage.messages[0].id : undefined,
     enabled: conversationId !== null,
   })
 }

@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query"
 import {
   CheckCheckIcon,
   CheckIcon,
+  PinIcon,
+  PinOffIcon,
   ReplyIcon,
   SendIcon,
   SmileIcon,
@@ -10,20 +12,33 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
+import { toast } from "sonner"
 
 import { useAuthStore } from "@/features/auth"
 
 import type {
   ConversationMessageRecord,
   ConversationMessageReplyPreview,
+  ConversationPin,
 } from "@/shared/api"
 import {
+  conversationApi,
   useConversationMessages,
   useDirectConversation,
   useFriends,
 } from "@/shared/api"
 import { getSocket } from "@/shared/lib/socket"
 import { cn } from "@/shared/lib/utils"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { Button } from "@/shared/ui/button"
 import {
@@ -191,6 +206,18 @@ export function ChatView() {
   const messageRefs = React.useRef<Record<number, HTMLDivElement | null>>({})
   const highlightTimeoutRef = React.useRef<number | null>(null)
 
+  const lastScrollHeightRef = React.useRef(0)
+  const lastScrollTopRef = React.useRef(0)
+  const prevConversationIdRef = React.useRef<number | null>(null)
+  const lastMessageIdRef = React.useRef<number | null>(null)
+  const firstMessageIdRef = React.useRef<number | null>(null)
+
+  const [currentConversationId, setCurrentConversationId] = React.useState<number | null>(null)
+  const [socketPin, setSocketPin] = React.useState<ConversationPin | null | undefined>(undefined)
+  const [pinConfirmOpen, setPinConfirmOpen] = React.useState(false)
+  const [unpinConfirmOpen, setUnpinConfirmOpen] = React.useState(false)
+  const [selectedMessage, setSelectedMessage] = React.useState<ChatMessage | null>(null)
+
   const targetUserId = userId ? Number(userId) : null
   const localConversationId =
     targetUserId !== null ? (conversationIdsByUser[targetUserId] ?? null) : null
@@ -198,8 +225,29 @@ export function ChatView() {
     useDirectConversation(targetUserId)
   const activeConversationId =
     localConversationId ?? directConversation?.conversation.id ?? null
-  const { data: fetchedMessages, isLoading: isMessagesLoading } =
-    useConversationMessages(activeConversationId)
+
+  if (activeConversationId !== currentConversationId) {
+    setCurrentConversationId(activeConversationId)
+    setSocketPin(undefined)
+    setPinConfirmOpen(false)
+    setUnpinConfirmOpen(false)
+    setSelectedMessage(null)
+  }
+
+  const {
+    data: fetchedMessagesData,
+    isLoading: isMessagesLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useConversationMessages(activeConversationId)
+
+  const fetchedMessages = React.useMemo(
+    () => [...(fetchedMessagesData?.pages ?? [])].reverse().flatMap((page) => page.messages),
+    [fetchedMessagesData]
+  )
+  const activePin = socketPin !== undefined ? socketPin : (fetchedMessagesData?.pages[0]?.pin ?? null)
+
   const isLoading = isConversationLoading || isMessagesLoading
   const mergedMessages = React.useMemo(
     () =>
@@ -284,17 +332,37 @@ export function ChatView() {
 
   const scrollToMessage = React.useCallback(
     (messageId: number) => {
-      const messageNode = messageRefs.current[messageId]
+      const targetId = Number(messageId)
+      const messageNode = messageRefs.current[targetId]
 
-      if (!messageNode) return
+      if (!messageNode) {
+        console.warn(`Message node not found for ID: ${targetId}`)
+        return
+      }
 
-      messageNode.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
+      requestAnimationFrame(() => {
+        const viewport = getScrollViewport(scrollRef.current)
+        if (viewport) {
+          const viewportRect = viewport.getBoundingClientRect()
+          const nodeRect = messageNode.getBoundingClientRect()
+          const relativeTop = nodeRect.top - viewportRect.top + viewport.scrollTop
+          const targetScrollTop = relativeTop - viewportRect.height / 2 + nodeRect.height / 2
+
+          viewport.scrollTo({
+            top: targetScrollTop,
+            behavior: "smooth",
+          })
+        } else {
+          messageNode.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          })
+        }
       })
+
       setHighlightState({
         userId: targetUserId,
-        messageId,
+        messageId: targetId,
       })
 
       if (highlightTimeoutRef.current !== null) {
@@ -303,7 +371,7 @@ export function ChatView() {
 
       highlightTimeoutRef.current = window.setTimeout(() => {
         setHighlightState((current) =>
-          current.userId === targetUserId && current.messageId === messageId
+          current.userId === targetUserId && current.messageId === targetId
             ? { userId: targetUserId, messageId: null }
             : current
         )
@@ -431,13 +499,30 @@ export function ChatView() {
       }
     }
 
+    const handlePinUpdated = (payload: {
+      conversationId: number
+      pin: ConversationPin | null
+    }) => {
+      if (payload.conversationId === activeConversationId) {
+        setSocketPin(payload.pin)
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations", activeConversationId, "messages"],
+        })
+      }
+      void queryClient.invalidateQueries({
+        queryKey: ["conversations"],
+      })
+    }
+
     socket.on("message.received", handleMessage)
     socket.on("message.read", handleMessageRead)
     socket.on("message.updated", handleMessageUpdated)
+    socket.on("conversation.pin.updated", handlePinUpdated)
     return () => {
       socket.off("message.received", handleMessage)
       socket.off("message.read", handleMessageRead)
       socket.off("message.updated", handleMessageUpdated)
+      socket.off("conversation.pin.updated", handlePinUpdated)
     }
   }, [
     activeConversationId,
@@ -447,25 +532,121 @@ export function ChatView() {
     currentUser,
   ])
 
-  // Auto-scroll to the actual Radix viewport after the new message is rendered.
+  // Register scroll listener on the ScrollArea's viewport to trigger fetchNextPage() when scrolling near the top
+  React.useEffect(() => {
+    const viewport = getScrollViewport(scrollRef.current)
+    if (!viewport) return
+
+    const handleScroll = () => {
+      // Record scroll metrics for anchoring
+      lastScrollHeightRef.current = viewport.scrollHeight
+      lastScrollTopRef.current = viewport.scrollTop
+
+      // Trigger fetchNextPage when scrolling near top (scrollTop < 100)
+      if (
+        viewport.scrollTop < 100 &&
+        hasNextPage &&
+        !isFetchingNextPage
+      ) {
+        void fetchNextPage()
+      }
+    }
+
+    viewport.addEventListener("scroll", handleScroll)
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll)
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  // Auto-scroll or anchor scroll position after messages change
   React.useLayoutEffect(() => {
     const viewport = getScrollViewport(scrollRef.current)
     if (!viewport) return
 
-    const frameId = requestAnimationFrame(() => {
+    const prevConvId = prevConversationIdRef.current
+    const prevLastMsgId = lastMessageIdRef.current
+    const prevFirstMsgId = firstMessageIdRef.current
+
+    // Update refs
+    prevConversationIdRef.current = activeConversationId
+
+    const lastMsg = messages[messages.length - 1]
+    const lastMsgId = lastMsg?.id ?? null
+    lastMessageIdRef.current = lastMsgId
+
+    const firstMsg = messages[0]
+    const firstMsgId = firstMsg?.id ?? null
+    firstMessageIdRef.current = firstMsgId
+
+    // 1. If conversation changed, scroll to bottom
+    if (activeConversationId !== prevConvId) {
       viewport.scrollTop = viewport.scrollHeight
-    })
+      lastScrollHeightRef.current = viewport.scrollHeight
+      lastScrollTopRef.current = viewport.scrollTop
+      return
+    }
 
-    return () => cancelAnimationFrame(frameId)
-  }, [messages])
+    // If there were no messages before, and now there are, scroll to bottom
+    if (messages.length > 0 && prevLastMsgId === null) {
+      viewport.scrollTop = viewport.scrollHeight
+      lastScrollHeightRef.current = viewport.scrollHeight
+      lastScrollTopRef.current = viewport.scrollTop
+      return
+    }
 
-  // Mark messages as read when entering conversation
+    // 2. Determine if a new message was added at the bottom
+    const wasNewMessageAdded = lastMsgId !== null && lastMsgId !== prevLastMsgId
+
+    if (wasNewMessageAdded) {
+      const isMyMessage = lastMsg.senderId === currentUserId
+      const wasAtBottom =
+        lastScrollHeightRef.current - lastScrollTopRef.current - viewport.clientHeight < 150
+
+      if (isMyMessage || wasAtBottom) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
+    } else {
+      // 3. Prepend anchor: messages changed but last message ID didn't change (older messages prepended)
+      const wasPrepended = prevFirstMsgId !== null && firstMsgId !== prevFirstMsgId
+      if (wasPrepended) {
+        const delta = viewport.scrollHeight - lastScrollHeightRef.current
+        if (delta > 0) {
+          viewport.scrollTop = lastScrollTopRef.current + delta
+        }
+      }
+    }
+
+    // Update tracking refs
+    lastScrollHeightRef.current = viewport.scrollHeight
+    lastScrollTopRef.current = viewport.scrollTop
+  }, [messages, activeConversationId, currentUserId])
+
+  // Join conversation room, set active conversation, and mark messages as read when entering conversation or on reconnect
   React.useEffect(() => {
     if (!activeConversationId) return
     const socket = getSocket()
     if (!socket) return
 
-    socket.emit("message.read", { conversationId: activeConversationId })
+    const handleConnect = () => {
+      socket.emit("conversation.join", { conversationId: activeConversationId })
+      socket.emit("presence.set-active-conversation", { conversationId: activeConversationId })
+      socket.emit("message.read", { conversationId: activeConversationId })
+    }
+
+    // Join immediately if already connected
+    if (socket.connected) {
+      handleConnect()
+    }
+
+    socket.on("connect", handleConnect)
+
+    return () => {
+      socket.off("connect", handleConnect)
+      // When leaving the conversation or unmounting, clear the active conversation in presence state
+      if (socket.connected) {
+        socket.emit("presence.set-active-conversation", { conversationId: null })
+      }
+    }
   }, [activeConversationId])
 
   const handleSend = () => {
@@ -522,6 +703,56 @@ export function ChatView() {
     }
   }
 
+  const handlePinConfirm = async () => {
+    if (!activeConversationId || !selectedMessage) return
+    try {
+      const res = await conversationApi.pinMessage(activeConversationId, selectedMessage.id)
+      if (res.data.success && res.data.data) {
+        setSocketPin(res.data.data.pin)
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations", activeConversationId, "messages"],
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations"],
+        })
+        toast.success(t("chat.pinSuccess"))
+      } else {
+        toast.error(t("chat.pinError"))
+      }
+    } catch (error) {
+      console.error("Failed to pin message:", error)
+      toast.error(t("chat.pinError"))
+    } finally {
+      setPinConfirmOpen(false)
+      setSelectedMessage(null)
+    }
+  }
+
+  const handleUnpinConfirm = async () => {
+    if (!activeConversationId) return
+    try {
+      const res = await conversationApi.unpinMessage(activeConversationId)
+      if (res.data.success) {
+        setSocketPin(null)
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations", activeConversationId, "messages"],
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations"],
+        })
+        toast.success(t("chat.unpinSuccess"))
+      } else {
+        toast.error(t("chat.unpinError"))
+      }
+    } catch (error) {
+      console.error("Failed to unpin message:", error)
+      toast.error(t("chat.unpinError"))
+    } finally {
+      setUnpinConfirmOpen(false)
+      setSelectedMessage(null)
+    }
+  }
+
   if (!targetUserId) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
@@ -553,9 +784,79 @@ export function ChatView() {
         </div>
       </header>
 
+      {activePin && (
+        <div className="flex h-12 shrink-0 items-center justify-between border-b bg-muted/30 px-4 py-1.5 text-xs">
+          <div
+            onClick={() => {
+              const msgId = Number(activePin.messageId)
+              const msgExists = messages.some((m) => Number(m.id) === msgId)
+              if (msgExists) {
+                scrollToMessage(msgId)
+              } else {
+                toast.info(t("chat.pinNoticeTooOld"))
+              }
+            }}
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5"
+            title={`Pinned by ${activePin.pinnedByName} at ${formatTime(activePin.pinnedAt)}`}
+          >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <PinIcon className="size-4 rotate-45" />
+            </div>
+            <div className="min-w-0 flex-1 border-l-2 border-primary/55 pl-2.5">
+              <div className="truncate font-semibold text-primary">
+                {t("chat.pinnedLabel")}
+              </div>
+              <div className="truncate text-muted-foreground text-[11px] mt-0.5">
+                <span className="font-medium text-foreground">
+                  {activePin.messagePreview.senderName}:
+                </span>{" "}
+                {getMessagePreview(
+                  activePin.messagePreview.content,
+                  t("chat.messageUnavailable"),
+                  70
+                )}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const matchingMsg = messages.find((m) => m.id === activePin.messageId)
+              if (matchingMsg) {
+                setSelectedMessage(matchingMsg)
+              } else {
+                setSelectedMessage({
+                  id: activePin.messageId,
+                  conversationId: activePin.conversationId,
+                  senderId: activePin.messagePreview.senderId,
+                  content: activePin.messagePreview.content,
+                  type: "text",
+                  replyToId: null,
+                  replyTo: null,
+                  isEdited: false,
+                  isDeleted: false,
+                  createdAt: activePin.messagePreview.createdAt,
+                  updatedAt: activePin.messagePreview.createdAt,
+                })
+              }
+              setUnpinConfirmOpen(true)
+            }}
+            className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Unpin message"
+          >
+            <XIcon className="size-4" />
+          </button>
+        </div>
+      )}
+
       {/* Messages */}
       <ScrollArea className="relative min-h-0 flex-1 px-4" ref={scrollRef}>
         <div className="min-h-full space-y-3 py-4">
+          {isFetchingNextPage && (
+            <div className="py-2 text-center text-xs text-muted-foreground">
+              {t("chat.loading")}...
+            </div>
+          )}
           {isLoading && (
             <div className="text-center text-sm text-muted-foreground">
               {t("chat.loading")}
@@ -573,25 +874,26 @@ export function ChatView() {
               otherMemberLastReadId !== null &&
               msg.id <= otherMemberLastReadId
             return (
-              <ContextMenu key={msg.id}>
-                <ContextMenuTrigger asChild>
-                  <div
-                    ref={(node) => {
-                      messageRefs.current[msg.id] = node
-                    }}
-                    className={cn(
-                      "flex scroll-mt-24 rounded-3xl transition-shadow",
-                      isMine ? "justify-end" : "justify-start",
-                      highlightedMessageId === msg.id &&
-                        "ring-2 ring-primary/35 ring-offset-2 ring-offset-background"
-                    )}
-                  >
+              <div
+                key={msg.id}
+                ref={(node) => {
+                  messageRefs.current[msg.id] = node
+                }}
+                className={cn(
+                  "flex scroll-mt-24 rounded-3xl",
+                  isMine ? "justify-end" : "justify-start"
+                )}
+              >
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
                     <div
                       className={cn(
-                        "max-w-[70%] rounded-2xl px-4 py-2 text-sm",
+                        "max-w-[70%] rounded-2xl px-4 py-2 text-sm transition-shadow",
                         isMine
                           ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground"
+                          : "bg-muted text-foreground",
+                        highlightedMessageId === msg.id &&
+                          "ring-2 ring-primary/35 ring-offset-2 ring-offset-background"
                       )}
                     >
                       {msg.replyTo && (
@@ -716,15 +1018,36 @@ export function ChatView() {
                           ))}
                       </div>
                     </div>
-                  </div>
-                </ContextMenuTrigger>
-                <ContextMenuContent className="w-40">
-                  <ContextMenuItem onSelect={() => setReplyDraft(msg)}>
-                    <ReplyIcon className="size-4" />
-                    {t("chat.replyAction")}
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="w-40">
+                    <ContextMenuItem onSelect={() => setReplyDraft(msg)}>
+                      <ReplyIcon className="size-4" />
+                      {t("chat.replyAction")}
+                    </ContextMenuItem>
+                    {activePin?.messageId === msg.id ? (
+                      <ContextMenuItem
+                        onSelect={() => {
+                          setSelectedMessage(msg)
+                          setUnpinConfirmOpen(true)
+                        }}
+                      >
+                        <PinOffIcon className="size-4" />
+                        {t("chat.unpinAction")}
+                      </ContextMenuItem>
+                    ) : (
+                      <ContextMenuItem
+                        onSelect={() => {
+                          setSelectedMessage(msg)
+                          setPinConfirmOpen(true)
+                        }}
+                      >
+                        <PinIcon className="size-4" />
+                        {t("chat.pinAction")}
+                      </ContextMenuItem>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
+              </div>
             )
           })}
         </div>
@@ -788,6 +1111,52 @@ export function ChatView() {
           </Button>
         </div>
       </div>
+
+      {/* Pin confirmation dialog */}
+      <AlertDialog open={pinConfirmOpen} onOpenChange={setPinConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("chat.pinDialogTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("chat.pinDialogDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setPinConfirmOpen(false)
+              setSelectedMessage(null)
+            }}>
+              {t("profileEdit.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handlePinConfirm}>
+              {t("chat.pinAction")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unpin confirmation dialog */}
+      <AlertDialog open={unpinConfirmOpen} onOpenChange={setUnpinConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("chat.unpinDialogTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("chat.unpinDialogDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setUnpinConfirmOpen(false)
+              setSelectedMessage(null)
+            }}>
+              {t("profileEdit.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleUnpinConfirm}>
+              {t("chat.unpinAction")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
 import { useAuthStore } from "@/features/auth"
@@ -22,12 +22,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const socket = connectSocket()
 
     socket.on("connect", () => {
-      // eslint-disable-next-line no-console
+       
       console.log("[socket] connected:", socket.id)
     })
 
     socket.on("disconnect", (reason) => {
-      // eslint-disable-next-line no-console
+       
       console.log("[socket] disconnected:", reason)
     })
 
@@ -64,6 +64,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     // New message received
     socket.on("message.received", () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    })
+
+    // Conversation pin updated
+    socket.on("conversation.pin.updated", () => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] })
     })
 

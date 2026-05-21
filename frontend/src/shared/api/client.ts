@@ -69,7 +69,11 @@ apiClient.interceptors.response.use(
       _retry?: boolean
     }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      originalRequest.url !== AUTH_ROUTES.REFRESH
+    ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
@@ -96,6 +100,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null)
         localStorage.removeItem(ACCESS_TOKEN_KEY)
+        localStorage.removeItem("cowork-chat-session")
         window.location.href = "/login"
         return Promise.reject(refreshError)
       } finally {

@@ -1,10 +1,11 @@
-import { eq, desc, and, isNull } from "drizzle-orm";
+import { eq, desc, and, isNull, lt } from "drizzle-orm";
 import {
   db,
   messagesTable,
   usersTable,
   conversationsTable,
-  conversationMembersTable
+  conversationMembersTable,
+  conversationPinsTable
 } from "../drizzle";
 import type { Message } from "../drizzle/schemas/message.schema";
 import { ApiError } from "../utils/api-error";
@@ -69,6 +70,7 @@ export type ListConversationMessagesInput = {
   conversationId: number;
   userId: number;
   limit: number;
+  before?: number;
 };
 
 export type SendConversationTextMessageInput = {
@@ -180,8 +182,13 @@ async function listConversationMessages(input: ListConversationMessagesInput) {
     input.userId
   );
 
+  const conditions = [eq(messagesTable.conversationId, input.conversationId)];
+  if (input.before) {
+    conditions.push(lt(messagesTable.id, input.before));
+  }
+
   const messages = await db.query.messagesTable.findMany({
-    where: eq(messagesTable.conversationId, input.conversationId),
+    where: and(...conditions),
     orderBy: desc(messagesTable.createdAt),
     limit: Math.min(Math.max(input.limit, 1), 50),
     with: {
@@ -192,20 +199,25 @@ async function listConversationMessages(input: ListConversationMessagesInput) {
     }
   });
 
-  return messages.map(msg =>
-    buildMessageWithReply(
-      msg,
-      msg.replyTo
-        ? {
-            id: msg.replyTo.id,
-            content: msg.replyTo.content,
-            senderId: msg.replyTo.senderId,
-            senderName: msg.replyTo.sender?.displayName ?? "Unknown",
-            createdAt: msg.replyTo.createdAt.toISOString()
-          }
-        : null
-    )
-  );
+  const pin = await conversationService.getConversationPin(input.conversationId);
+
+  return {
+    messages: messages.map(msg =>
+      buildMessageWithReply(
+        msg,
+        msg.replyTo
+          ? {
+              id: msg.replyTo.id,
+              content: msg.replyTo.content,
+              senderId: msg.replyTo.senderId,
+              senderName: msg.replyTo.sender?.displayName ?? "Unknown",
+              createdAt: msg.replyTo.createdAt.toISOString()
+            }
+          : null
+      )
+    ),
+    pin
+  };
 }
 
 async function sendConversationTextMessage(
@@ -344,8 +356,58 @@ async function sendDirectTextMessage(input: SendDirectTextMessageInput) {
   return { conversation, members, message, replyTo: replyPreview };
 }
 
+async function deleteMessage(messageId: number, userId: number) {
+  const message = await db.query.messagesTable.findFirst({
+    where: eq(messagesTable.id, messageId)
+  });
+
+  if (!message) {
+    throw ApiError.notFound("Message not found");
+  }
+
+  if (message.senderId !== userId) {
+    throw ApiError.forbidden("You cannot delete this message");
+  }
+
+  await db
+    .update(messagesTable)
+    .set({ isDeleted: true, updatedAt: new Date() })
+    .where(eq(messagesTable.id, messageId));
+
+  const pin = await db.query.conversationPinsTable.findFirst({
+    where: and(
+      eq(conversationPinsTable.conversationId, message.conversationId),
+      eq(conversationPinsTable.messageId, messageId)
+    )
+  });
+
+  if (pin) {
+    await db
+      .delete(conversationPinsTable)
+      .where(eq(conversationPinsTable.conversationId, message.conversationId));
+
+    const activeMembers = await db
+      .select({ userId: conversationMembersTable.userId })
+      .from(conversationMembersTable)
+      .where(
+        and(
+          eq(conversationMembersTable.conversationId, message.conversationId),
+          isNull(conversationMembersTable.leftAt)
+        )
+      );
+
+    const memberIds = activeMembers.map(m => m.userId);
+    socketEmitter.emitConversationPinUpdated(
+      message.conversationId,
+      memberIds,
+      null
+    );
+  }
+}
+
 export const messageService = {
   listConversationMessages,
   sendConversationTextMessage,
-  sendDirectTextMessage
+  sendDirectTextMessage,
+  deleteMessage
 };

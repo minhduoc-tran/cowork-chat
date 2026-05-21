@@ -8,5 +8,7 @@ router.use(authMiddleware);
 router.get("/", conversationController.listConversations);
 router.get("/:conversationId/messages", conversationController.listMessages);
 router.post("/groups", conversationController.createGroup);
+router.put("/:conversationId/pin", conversationController.pinMessage);
+router.delete("/:conversationId/pin", conversationController.unpinMessage);
 
 export default router;

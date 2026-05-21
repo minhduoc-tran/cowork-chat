@@ -56,10 +56,26 @@ export interface ConversationMessageRecord extends ConversationMessage {
   replyTo: ConversationMessageReplyPreview | null
 }
 
+export interface ConversationPin {
+  conversationId: number
+  messageId: number
+  pinnedById: number
+  pinnedByName: string
+  pinnedAt: string
+  messagePreview: {
+    id: number
+    content: string | null
+    senderId: number
+    senderName: string
+    createdAt: string
+  }
+}
+
 export interface ConversationListItem {
   conversation: Conversation
   members: ConversationMember[]
   lastMessage: ConversationMessage | null
+  pin: ConversationPin | null
 }
 
 export interface ConversationListResponse {
@@ -68,4 +84,5 @@ export interface ConversationListResponse {
 
 export interface ConversationMessageListResponse {
   messages: Array<ConversationMessage | ConversationMessageWithReply>
+  pin: ConversationPin | null
 }
