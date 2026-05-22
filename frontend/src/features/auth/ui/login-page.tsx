@@ -6,10 +6,7 @@ import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
-import {
-  type LoginFormData,
-  loginSchema,
-} from "@/features/auth"
+import { type LoginFormData, loginSchema } from "@/features/auth"
 
 import { useLogin } from "@/shared/api"
 import { Button } from "@/shared/ui/button"

@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query"
 
 import { conversationApi } from "./api"
 
@@ -12,7 +12,8 @@ export function useConversations() {
 export function useDirectConversation(targetUserId: number | null) {
   return useQuery({
     queryKey: ["conversations", "direct", targetUserId],
-    queryFn: () => conversationApi.findDirectConversationByUserId(targetUserId!),
+    queryFn: () =>
+      conversationApi.findDirectConversationByUserId(targetUserId!),
     enabled: targetUserId !== null,
   })
 }
@@ -36,8 +37,26 @@ export function useConversationPins(conversationId: number | null) {
   return useQuery({
     queryKey: ["pins", conversationId],
     queryFn: () =>
-      conversationApi.listPins(conversationId!).then((res) => res.data.data.pins ?? []),
+      conversationApi
+        .listPins(conversationId!)
+        .then((res) => res.data.data.pins ?? []),
     enabled: conversationId !== null,
   })
 }
 
+export function useToggleMessageReaction() {
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      messageId,
+      emoji,
+    }: {
+      conversationId: number
+      messageId: number
+      emoji: string
+    }) =>
+      conversationApi
+        .toggleMessageReaction(conversationId, messageId, emoji)
+        .then((res) => res.data.data),
+  })
+}

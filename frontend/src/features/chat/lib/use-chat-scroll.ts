@@ -68,8 +68,10 @@ export function useChatScroll({
         if (viewport) {
           const viewportRect = viewport.getBoundingClientRect()
           const nodeRect = messageNode.getBoundingClientRect()
-          const relativeTop = nodeRect.top - viewportRect.top + viewport.scrollTop
-          const targetScrollTop = relativeTop - viewportRect.height / 2 + nodeRect.height / 2
+          const relativeTop =
+            nodeRect.top - viewportRect.top + viewport.scrollTop
+          const targetScrollTop =
+            relativeTop - viewportRect.height / 2 + nodeRect.height / 2
 
           viewport.scrollTo({
             top: targetScrollTop,
@@ -132,11 +134,7 @@ export function useChatScroll({
       }
 
       // Trigger fetchNextPage when scrolling near top (scrollTop < 100)
-      if (
-        viewport.scrollTop < 100 &&
-        hasNextPage &&
-        !isFetchingNextPage
-      ) {
+      if (viewport.scrollTop < 100 && hasNextPage && !isFetchingNextPage) {
         void fetchNextPage()
       }
     }
@@ -191,7 +189,10 @@ export function useChatScroll({
     // 2. Determine if a new message was added at the bottom
     const wasNewMessageAdded = lastMsgId !== null && lastMsgId !== prevLastMsgId
     const wasAtBottom =
-      lastScrollHeightRef.current - lastScrollTopRef.current - viewport.clientHeight < 150
+      lastScrollHeightRef.current -
+        lastScrollTopRef.current -
+        viewport.clientHeight <
+      150
 
     if (wasNewMessageAdded) {
       const isMyMessage = lastMsg.senderId === currentUserId
@@ -213,7 +214,8 @@ export function useChatScroll({
       viewport.scrollTop = viewport.scrollHeight
     } else {
       // 3. Prepend anchor: messages changed but last message ID didn't change (older messages prepended)
-      const wasPrepended = prevFirstMsgId !== null && firstMsgId !== prevFirstMsgId
+      const wasPrepended =
+        prevFirstMsgId !== null && firstMsgId !== prevFirstMsgId
       if (wasPrepended) {
         const delta = viewport.scrollHeight - lastScrollHeightRef.current
         if (delta > 0) {
@@ -225,7 +227,13 @@ export function useChatScroll({
     // Update tracking refs
     lastScrollHeightRef.current = viewport.scrollHeight
     lastScrollTopRef.current = viewport.scrollTop
-  }, [messages, activeConversationId, currentUserId, isOtherUserTyping, setHasUnreadBelow])
+  }, [
+    messages,
+    activeConversationId,
+    currentUserId,
+    isOtherUserTyping,
+    setHasUnreadBelow,
+  ])
 
   return {
     scrollRef,

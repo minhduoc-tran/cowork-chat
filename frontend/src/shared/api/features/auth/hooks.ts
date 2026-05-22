@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { useAuthStore } from "@/features/auth"
 
-import { ACCESS_TOKEN_KEY, apiClient,CSRF_TOKEN_KEY } from "../../client"
+import { ACCESS_TOKEN_KEY, apiClient, CSRF_TOKEN_KEY } from "../../client"
 import { getCookieValue } from "../../csrf"
 
 import { authApi } from "./api"

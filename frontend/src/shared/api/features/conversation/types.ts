@@ -19,6 +19,19 @@ export interface ConversationMember {
   isOnline: boolean
 }
 
+export interface MessageReaction {
+  id: number
+  messageId: number
+  userId: number
+  emoji: string
+  createdAt: string
+  user: {
+    id: number
+    displayName: string
+    avatar: string | null
+  }
+}
+
 export interface ConversationMessage {
   id: number
   conversationId: number
@@ -35,6 +48,7 @@ export interface ConversationMessage {
   } | null
   isEdited: boolean
   isDeleted: boolean
+  reactions?: MessageReaction[]
   createdAt: string
   updatedAt: string
 }

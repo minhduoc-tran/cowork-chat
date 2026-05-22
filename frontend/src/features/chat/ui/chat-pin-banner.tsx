@@ -42,8 +42,8 @@ export function ChatPinBanner({
             className={cn(
               "w-0.5 rounded-full transition-all duration-200",
               i === activePinIndex
-                ? "bg-primary h-3.5"
-                : "bg-muted-foreground/30 h-1.5"
+                ? "h-3.5 bg-primary"
+                : "h-1.5 bg-muted-foreground/30"
             )}
           />
         ))}
@@ -71,7 +71,7 @@ export function ChatPinBanner({
           <div className="truncate font-semibold text-primary">
             {t("chat.pinnedLabel")} {activePinIndex + 1}/{pins.length}
           </div>
-          <div className="truncate text-muted-foreground text-[11px] mt-0.5">
+          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
             <span className="font-medium text-foreground">
               {currentPin.messagePreview.senderName}:
             </span>{" "}

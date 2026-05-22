@@ -13,6 +13,11 @@ export const CONVERSATION_ROUTES = {
   PIN: "/api/v1/conversations/:conversationId/pin",
   PINS: "/api/v1/conversations/:conversationId/pins",
   UNPIN: "/api/v1/conversations/:conversationId/pins/:messageId",
+  RECALL_MESSAGE:
+    "/api/v1/conversations/:conversationId/messages/:messageId/recall",
+  DELETE_MESSAGE: "/api/v1/conversations/:conversationId/messages/:messageId",
+  TOGGLE_REACTION:
+    "/api/v1/conversations/:conversationId/messages/:messageId/reactions",
 } as const
 
 export const FRIEND_ROUTES = {

@@ -1,4 +1,3 @@
-import * as React from "react"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/shared/lib/utils"
@@ -14,7 +13,11 @@ interface ChatHeaderProps {
   isOtherUserTyping: boolean
 }
 
-export function ChatHeader({ friend, targetUserId, isOtherUserTyping }: ChatHeaderProps) {
+export function ChatHeader({
+  friend,
+  targetUserId,
+  isOtherUserTyping,
+}: ChatHeaderProps) {
   const { t } = useTranslation()
 
   return (
@@ -32,15 +35,17 @@ export function ChatHeader({ friend, targetUserId, isOtherUserTyping }: ChatHead
         <div className="truncate text-sm font-semibold">
           {friend?.displayName ?? `User #${targetUserId}`}
         </div>
-        <div className={cn(
-          "text-xs text-muted-foreground transition-all duration-200",
-          isOtherUserTyping && "text-primary font-medium animate-pulse"
-        )}>
+        <div
+          className={cn(
+            "text-xs text-muted-foreground transition-all duration-200",
+            isOtherUserTyping && "animate-pulse font-medium text-primary"
+          )}
+        >
           {isOtherUserTyping
             ? t("chat.typing", { name: friend?.displayName })
             : friend?.isOnline
-            ? t("chat.online")
-            : t("chat.offline")}
+              ? t("chat.online")
+              : t("chat.offline")}
         </div>
       </div>
     </header>

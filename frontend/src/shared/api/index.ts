@@ -24,6 +24,7 @@ export {
   useConversationMessages,
   useConversations,
   useDirectConversation,
+  useToggleMessageReaction,
 } from "./features/conversation/hooks"
 export type {
   Conversation,
@@ -36,6 +37,7 @@ export type {
   ConversationMessageReplyPreview,
   ConversationMessageWithReply,
   ConversationPin,
+  MessageReaction,
 } from "./features/conversation/types"
 export { friendApi } from "./features/friend/api"
 export {

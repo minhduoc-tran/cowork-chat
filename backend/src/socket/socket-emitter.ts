@@ -8,7 +8,8 @@ import type {
   ViewerScopedPresencePayload,
   TypingUpdatedPayload,
   MessageUpdatedPayload,
-  ConversationPinPayload
+  ConversationPinPayload,
+  MessageDeletedPayload
 } from "../types/socket.types";
 
 export const socketEmitter = {
@@ -64,6 +65,24 @@ export const socketEmitter = {
     io.to(`conversation:${conversationId}`).emit("message.updated", payload);
     userIds.forEach(userId => {
       io.to(`user:${userId}`).emit("message.updated", payload);
+    });
+  },
+
+  emitMessageDeleted(
+    conversationId: number,
+    userIds: number[],
+    messageId: number
+  ) {
+    const io = getSocketServer();
+    io.to(`conversation:${conversationId}`).emit("message.deleted", {
+      conversationId,
+      messageId
+    });
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("message.deleted", {
+        conversationId,
+        messageId
+      });
     });
   },
 

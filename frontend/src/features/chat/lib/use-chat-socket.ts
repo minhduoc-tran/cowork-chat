@@ -14,8 +14,12 @@ interface UseChatSocketOptions {
   targetUserId: number | null
   localConversationId: number | null
   currentUser: { id: number; displayName: string } | null
-  setConversationIdsByUser: React.Dispatch<React.SetStateAction<Record<number, number>>>
-  setExtraMessagesByUser: React.Dispatch<React.SetStateAction<Record<number, ChatMessage[]>>>
+  setConversationIdsByUser: React.Dispatch<
+    React.SetStateAction<Record<number, number>>
+  >
+  setExtraMessagesByUser: React.Dispatch<
+    React.SetStateAction<Record<number, ChatMessage[]>>
+  >
   setRealtimeLastReadId: (val: number | null) => void
   setSocketPins: (val: ConversationPin[] | undefined) => void
   setActivePinIndex: React.Dispatch<React.SetStateAction<number>>
@@ -44,7 +48,9 @@ export function useChatSocket({
 
     const handleConnect = () => {
       socket.emit("conversation.join", { conversationId: activeConversationId })
-      socket.emit("presence.set-active-conversation", { conversationId: activeConversationId })
+      socket.emit("presence.set-active-conversation", {
+        conversationId: activeConversationId,
+      })
       socket.emit("message.read", { conversationId: activeConversationId })
     }
 
@@ -57,7 +63,9 @@ export function useChatSocket({
     return () => {
       socket.off("connect", handleConnect)
       if (socket.connected) {
-        socket.emit("presence.set-active-conversation", { conversationId: null })
+        socket.emit("presence.set-active-conversation", {
+          conversationId: null,
+        })
       }
     }
   }, [activeConversationId])
@@ -159,13 +167,45 @@ export function useChatSocket({
         setExtraMessagesByUser((prev) => {
           if (targetUserId === null) return prev
           const currentMessages = prev[targetUserId] ?? []
-          const index = currentMessages.findIndex((m) => m.id === updatedMessage.id)
+          const index = currentMessages.findIndex(
+            (m) => m.id === updatedMessage.id
+          )
           if (index !== -1) {
             const updated = [...currentMessages]
             updated[index] = updatedMessage
             return { ...prev, [targetUserId]: updated }
           }
           return prev
+        })
+        if (activeConversationId) {
+          void queryClient.invalidateQueries({
+            queryKey: ["conversations", activeConversationId, "messages"],
+          })
+        }
+      }
+    }
+
+    const handleMessageDeleted = (payload: {
+      conversationId: number
+      messageId: number
+    }) => {
+      if (
+        activeConversationId &&
+        payload.conversationId === activeConversationId
+      ) {
+        setExtraMessagesByUser((prev) => {
+          if (targetUserId === null) return prev
+          const currentMessages = prev[targetUserId] ?? []
+          const filtered = currentMessages.filter(
+            (m) => m.id !== payload.messageId
+          )
+          if (filtered.length !== currentMessages.length) {
+            return { ...prev, [targetUserId]: filtered }
+          }
+          return prev
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations", activeConversationId, "messages"],
         })
       }
     }
@@ -176,7 +216,9 @@ export function useChatSocket({
     }) => {
       if (payload.conversationId === activeConversationId) {
         setSocketPins(payload.pins)
-        setActivePinIndex((prev) => Math.min(prev, Math.max(0, payload.pins.length - 1)))
+        setActivePinIndex((prev) =>
+          Math.min(prev, Math.max(0, payload.pins.length - 1))
+        )
         queryClient.setQueryData(["pins", activeConversationId], payload.pins)
       }
       void queryClient.invalidateQueries({
@@ -210,6 +252,7 @@ export function useChatSocket({
     socket.on("message.received", handleMessage)
     socket.on("message.read", handleMessageRead)
     socket.on("message.updated", handleMessageUpdated)
+    socket.on("message.deleted", handleMessageDeleted)
     socket.on("pin:updated", handlePinUpdated)
     socket.on("typing.updated", handleTypingUpdated)
 
@@ -217,6 +260,7 @@ export function useChatSocket({
       socket.off("message.received", handleMessage)
       socket.off("message.read", handleMessageRead)
       socket.off("message.updated", handleMessageUpdated)
+      socket.off("message.deleted", handleMessageDeleted)
       socket.off("pin:updated", handlePinUpdated)
       socket.off("typing.updated", handleTypingUpdated)
     }

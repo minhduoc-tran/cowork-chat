@@ -14,5 +14,17 @@ router.delete(
   "/:conversationId/pins/:messageId",
   conversationController.unpinMessage
 );
+router.put(
+  "/:conversationId/messages/:messageId/recall",
+  conversationController.recallMessage
+);
+router.delete(
+  "/:conversationId/messages/:messageId",
+  conversationController.deleteMessage
+);
+router.post(
+  "/:conversationId/messages/:messageId/reactions",
+  conversationController.toggleMessageReaction
+);
 
 export default router;

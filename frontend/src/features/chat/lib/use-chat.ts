@@ -44,11 +44,16 @@ export function useChat() {
     message: ChatMessage | null
   }>({ userId: null, message: null })
 
-  const [socketPins, setSocketPins] = React.useState<ConversationPin[] | undefined>(undefined)
+  const [socketPins, setSocketPins] = React.useState<
+    ConversationPin[] | undefined
+  >(undefined)
   const [activePinIndex, setActivePinIndex] = React.useState(0)
   const [pinConfirmOpen, setPinConfirmOpen] = React.useState(false)
   const [unpinConfirmOpen, setUnpinConfirmOpen] = React.useState(false)
-  const [selectedMessage, setSelectedMessage] = React.useState<ChatMessage | null>(null)
+  const [recallConfirmOpen, setRecallConfirmOpen] = React.useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false)
+  const [selectedMessage, setSelectedMessage] =
+    React.useState<ChatMessage | null>(null)
   const [isOtherUserTyping, setIsOtherUserTyping] = React.useState(false)
   const [hasUnreadBelow, setHasUnreadBelow] = React.useState(false)
 
@@ -72,13 +77,17 @@ export function useChat() {
   } = useConversationMessages(activeConversationId)
 
   const fetchedMessages = React.useMemo(
-    () => [...(fetchedMessagesData?.pages ?? [])].reverse().flatMap((page) => page.messages),
+    () =>
+      [...(fetchedMessagesData?.pages ?? [])]
+        .reverse()
+        .flatMap((page) => page.messages),
     [fetchedMessagesData]
   )
 
-  const pins = socketPins !== undefined
-    ? socketPins
-    : (fetchedMessagesData?.pages[0]?.pins ?? [])
+  const pins =
+    socketPins !== undefined
+      ? socketPins
+      : (fetchedMessagesData?.pages[0]?.pins ?? [])
   const currentPin = pins[activePinIndex] ?? null
 
   const isLoading = isConversationLoading || isMessagesLoading
@@ -177,7 +186,9 @@ export function useChat() {
     activeConversationId,
     targetUserId,
     localConversationId,
-    currentUser,
+    currentUser: currentUser
+      ? { id: Number(currentUser.id), displayName: currentUser.displayName }
+      : null,
     setConversationIdsByUser,
     setExtraMessagesByUser,
     setRealtimeLastReadId,
@@ -320,7 +331,10 @@ export function useChat() {
   const handlePinConfirm = async () => {
     if (!activeConversationId || !selectedMessage) return
     try {
-      const res = await conversationApi.pinMessage(activeConversationId, selectedMessage.id)
+      const res = await conversationApi.pinMessage(
+        activeConversationId,
+        selectedMessage.id
+      )
       if (res.data.success && res.data.data) {
         setSocketPins(res.data.data.pins)
         void queryClient.invalidateQueries({
@@ -344,10 +358,15 @@ export function useChat() {
     const msgIdToUnpin = selectedMessage?.id ?? currentPin?.messageId
     if (!msgIdToUnpin) return
     try {
-      const res = await conversationApi.unpinMessage(activeConversationId, msgIdToUnpin)
+      const res = await conversationApi.unpinMessage(
+        activeConversationId,
+        msgIdToUnpin
+      )
       if (res.data.success && res.data.data) {
         setSocketPins(res.data.data.pins)
-        setActivePinIndex(prev => Math.max(0, Math.min(prev, res.data.data!.pins.length - 1)))
+        setActivePinIndex((prev) =>
+          Math.max(0, Math.min(prev, res.data.data!.pins.length - 1))
+        )
         void queryClient.invalidateQueries({
           queryKey: ["conversations"],
         })
@@ -364,8 +383,50 @@ export function useChat() {
     }
   }
 
+  const handleRecallConfirm = async () => {
+    if (!activeConversationId || !selectedMessage) return
+    try {
+      const res = await conversationApi.recallMessage(
+        activeConversationId,
+        selectedMessage.id
+      )
+      if (res.data.success) {
+        toast.success(t("chat.recallSuccess"))
+      } else {
+        toast.error(t("chat.recallError"))
+      }
+    } catch (error) {
+      console.error("Failed to recall message:", error)
+      toast.error(t("chat.recallError"))
+    } finally {
+      setRecallConfirmOpen(false)
+      setSelectedMessage(null)
+    }
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!activeConversationId || !selectedMessage) return
+    try {
+      const res = await conversationApi.deleteMessage(
+        activeConversationId,
+        selectedMessage.id
+      )
+      if (res.data.success) {
+        toast.success(t("chat.deleteSuccess"))
+      } else {
+        toast.error(t("chat.deleteError"))
+      }
+    } catch (error) {
+      console.error("Failed to delete message:", error)
+      toast.error(t("chat.deleteError"))
+    } finally {
+      setDeleteConfirmOpen(false)
+      setSelectedMessage(null)
+    }
+  }
+
   const scrollHintMode = getScrollHintMode({
-    showScrollToBottom,
+    showScrollHint: showScrollToBottom,
     hasUnreadBelow,
   })
 
@@ -401,10 +462,16 @@ export function useChat() {
     setPinConfirmOpen,
     unpinConfirmOpen,
     setUnpinConfirmOpen,
+    recallConfirmOpen,
+    setRecallConfirmOpen,
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
     selectedMessage,
     setSelectedMessage,
     handlePinConfirm,
     handleUnpinConfirm,
+    handleRecallConfirm,
+    handleDeleteConfirm,
     otherMemberLastReadId,
     getSenderName,
     isFetchingNextPage,

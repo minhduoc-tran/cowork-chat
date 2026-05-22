@@ -5,17 +5,17 @@ export function getCookieValue(
   const match = cookieString
     .split(";")
     .map((part) => part.trim())
-    .find((part) => part.startsWith(`${cookieName}=`));
+    .find((part) => part.startsWith(`${cookieName}=`))
 
-  if (!match) return null;
+  if (!match) return null
 
-  return decodeURIComponent(match.slice(cookieName.length + 1));
+  return decodeURIComponent(match.slice(cookieName.length + 1))
 }
 
 function isMutatingMethod(method?: string): boolean {
   return ["POST", "PUT", "PATCH", "DELETE"].includes(
     (method ?? "").toUpperCase()
-  );
+  )
 }
 
 export function getCsrfHeaderValue(
@@ -23,6 +23,6 @@ export function getCsrfHeaderValue(
   cookieString: string,
   cookieName: string
 ): string | null {
-  if (!isMutatingMethod(method)) return null;
-  return getCookieValue(cookieString, cookieName);
+  if (!isMutatingMethod(method)) return null
+  return getCookieValue(cookieString, cookieName)
 }

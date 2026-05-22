@@ -163,11 +163,111 @@ async function unpinMessage(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function recallMessage(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+    const messageId = Number(req.params.messageId);
+
+    if (!Number.isInteger(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    if (!Number.isInteger(messageId) || messageId < 1) {
+      throw ApiError.badRequest("Invalid message ID");
+    }
+
+    const updatedMessage = await messageService.recallMessage(
+      conversationId,
+      messageId,
+      req.user.id
+    );
+
+    return ApiResponse.ok(res, "Message recalled successfully", {
+      message: updatedMessage
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deleteMessage(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+    const messageId = Number(req.params.messageId);
+
+    if (!Number.isInteger(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    if (!Number.isInteger(messageId) || messageId < 1) {
+      throw ApiError.badRequest("Invalid message ID");
+    }
+
+    await messageService.deleteMessage(conversationId, messageId, req.user.id);
+
+    return ApiResponse.ok(res, "Message deleted successfully", {});
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function toggleMessageReaction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+    const messageId = Number(req.params.messageId);
+    const emoji = typeof req.body.emoji === "string" ? req.body.emoji : "";
+
+    if (!Number.isInteger(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    if (!Number.isInteger(messageId) || messageId < 1) {
+      throw ApiError.badRequest("Invalid message ID");
+    }
+
+    if (!emoji) {
+      throw ApiError.badRequest("Emoji is required");
+    }
+
+    const updatedMessage = await messageService.toggleMessageReaction({
+      conversationId,
+      messageId,
+      userId: req.user.id,
+      emoji
+    });
+
+    return ApiResponse.ok(res, "Message reaction toggled successfully", {
+      message: updatedMessage
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export const conversationController = {
   createGroup,
   listConversations,
   listMessages,
   listPins,
   pinMessage,
-  unpinMessage
+  unpinMessage,
+  recallMessage,
+  deleteMessage,
+  toggleMessageReaction
 };

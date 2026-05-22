@@ -40,6 +40,36 @@ function getConversationUnpinRoute(conversationId: number, messageId: number) {
   ).replace(":messageId", String(messageId))
 }
 
+function getConversationRecallMessageRoute(
+  conversationId: number,
+  messageId: number
+) {
+  return CONVERSATION_ROUTES.RECALL_MESSAGE.replace(
+    ":conversationId",
+    String(conversationId)
+  ).replace(":messageId", String(messageId))
+}
+
+function getConversationDeleteMessageRoute(
+  conversationId: number,
+  messageId: number
+) {
+  return CONVERSATION_ROUTES.DELETE_MESSAGE.replace(
+    ":conversationId",
+    String(conversationId)
+  ).replace(":messageId", String(messageId))
+}
+
+function getConversationToggleReactionRoute(
+  conversationId: number,
+  messageId: number
+) {
+  return CONVERSATION_ROUTES.TOGGLE_REACTION.replace(
+    ":conversationId",
+    String(conversationId)
+  ).replace(":messageId", String(messageId))
+}
+
 function unwrapMessage(
   item: ConversationMessage | ConversationMessageWithReply
 ): ConversationMessageRecord {
@@ -75,10 +105,15 @@ export const conversationApi = {
     conversationId: number,
     limit = 50,
     before?: number
-  ): Promise<{ messages: ConversationMessageRecord[]; pins: ConversationPin[] }> => {
+  ): Promise<{
+    messages: ConversationMessageRecord[]
+    pins: ConversationPin[]
+  }> => {
     const res = await apiClient.get<
       ApiResponse<ConversationMessageListResponse>
-    >(getConversationMessagesRoute(conversationId), { params: { limit, before } })
+    >(getConversationMessagesRoute(conversationId), {
+      params: { limit, before },
+    })
 
     const messages = (res.data.data.messages ?? []).map(unwrapMessage).reverse()
     const pins = res.data.data.pins ?? []
@@ -100,5 +135,25 @@ export const conversationApi = {
   unpinMessage: (conversationId: number, messageId: number) =>
     apiClient.delete<ApiResponse<{ pins: ConversationPin[] }>>(
       getConversationUnpinRoute(conversationId, messageId)
+    ),
+
+  recallMessage: (conversationId: number, messageId: number) =>
+    apiClient.put<ApiResponse<{ message: ConversationMessage }>>(
+      getConversationRecallMessageRoute(conversationId, messageId)
+    ),
+
+  deleteMessage: (conversationId: number, messageId: number) =>
+    apiClient.delete<ApiResponse<object>>(
+      getConversationDeleteMessageRoute(conversationId, messageId)
+    ),
+
+  toggleMessageReaction: (
+    conversationId: number,
+    messageId: number,
+    emoji: string
+  ) =>
+    apiClient.post<ApiResponse<{ message: ConversationMessage }>>(
+      getConversationToggleReactionRoute(conversationId, messageId),
+      { emoji }
     ),
 }

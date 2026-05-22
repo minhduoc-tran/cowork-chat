@@ -5,13 +5,27 @@ import {
   usersTable,
   conversationsTable,
   conversationMembersTable,
-  conversationPinsTable
+  conversationPinsTable,
+  messageReactionsTable
 } from "../drizzle";
 import type { Message } from "../drizzle/schemas/message.schema";
+import type { MessageReaction } from "../drizzle/schemas/reaction.schema";
 import { ApiError } from "../utils/api-error";
 import { conversationService } from "./conversation.service";
 import { extractFirstUrl, unfurlUrl } from "../utils/unfurl.util";
 import { socketEmitter } from "../socket/socket-emitter";
+
+export type MessageReactionWithUser = MessageReaction & {
+  user: {
+    id: number;
+    displayName: string;
+    avatar: string | null;
+  };
+};
+
+export type MessageWithReactions = Message & {
+  reactions?: MessageReactionWithUser[];
+};
 
 const concurrentUnfurls = new Map<number, number>(); // userId -> count
 
@@ -98,7 +112,7 @@ export type MessageReplyPreview = {
 
 // Enriched message unit returned by send and history flows
 export type MessageWithReplyPreview = {
-  message: Message;
+  message: MessageWithReactions;
   replyTo: MessageReplyPreview | null;
 };
 
@@ -195,11 +209,24 @@ async function listConversationMessages(input: ListConversationMessagesInput) {
       replyTo: {
         with: { sender: true }
       },
-      sender: true
+      sender: true,
+      reactions: {
+        with: {
+          user: {
+            columns: {
+              id: true,
+              displayName: true,
+              avatar: true
+            }
+          }
+        }
+      }
     }
   });
 
-  const pins = await conversationService.getConversationPins(input.conversationId);
+  const pins = await conversationService.getConversationPins(
+    input.conversationId
+  );
 
   return {
     messages: messages.map(msg =>
@@ -356,7 +383,11 @@ async function sendDirectTextMessage(input: SendDirectTextMessageInput) {
   return { conversation, members, message, replyTo: replyPreview };
 }
 
-async function deleteMessage(messageId: number, userId: number) {
+async function recallMessage(
+  conversationId: number,
+  messageId: number,
+  userId: number
+) {
   const message = await db.query.messagesTable.findFirst({
     where: eq(messagesTable.id, messageId)
   });
@@ -365,14 +396,19 @@ async function deleteMessage(messageId: number, userId: number) {
     throw ApiError.notFound("Message not found");
   }
 
-  if (message.senderId !== userId) {
-    throw ApiError.forbidden("You cannot delete this message");
+  if (message.conversationId !== conversationId) {
+    throw ApiError.badRequest("Message does not belong to this conversation");
   }
 
-  await db
+  if (message.senderId !== userId) {
+    throw ApiError.forbidden("You cannot recall this message");
+  }
+
+  const [updatedMessage] = await db
     .update(messagesTable)
     .set({ isDeleted: true, updatedAt: new Date() })
-    .where(eq(messagesTable.id, messageId));
+    .where(eq(messagesTable.id, messageId))
+    .returning();
 
   const pin = await db.query.conversationPinsTable.findFirst({
     where: and(
@@ -423,18 +459,247 @@ async function deleteMessage(messageId: number, userId: number) {
       );
 
     const memberIds = activeMembers.map(m => m.userId);
-    const updatedPins = await conversationService.getConversationPins(message.conversationId);
+    const updatedPins = await conversationService.getConversationPins(
+      message.conversationId
+    );
     socketEmitter.emitConversationPinUpdated(
       message.conversationId,
       memberIds,
       updatedPins
     );
   }
+
+  // Fetch active members to notify them via socket
+  const activeMembers = await db
+    .select({ userId: conversationMembersTable.userId })
+    .from(conversationMembersTable)
+    .where(
+      and(
+        eq(conversationMembersTable.conversationId, message.conversationId),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+  const memberIds = activeMembers.map(m => m.userId);
+
+  const replyPreview = await loadReplyPreview(
+    updatedMessage.replyToId ?? undefined
+  );
+
+  socketEmitter.emitMessageUpdated(message.conversationId, memberIds, {
+    message: updatedMessage,
+    replyTo: replyPreview
+  });
+
+  return updatedMessage;
+}
+
+async function deleteMessage(
+  conversationId: number,
+  messageId: number,
+  userId: number
+) {
+  const message = await db.query.messagesTable.findFirst({
+    where: eq(messagesTable.id, messageId)
+  });
+
+  if (!message) {
+    throw ApiError.notFound("Message not found");
+  }
+
+  if (message.conversationId !== conversationId) {
+    throw ApiError.badRequest("Message does not belong to this conversation");
+  }
+
+  // Allow anyone in the conversation to delete the message
+  await conversationService.ensureActiveConversationMember(
+    message.conversationId,
+    userId
+  );
+
+  // Check if message is pinned
+  const pin = await db.query.conversationPinsTable.findFirst({
+    where: and(
+      eq(conversationPinsTable.conversationId, message.conversationId),
+      eq(conversationPinsTable.messageId, messageId)
+    )
+  });
+
+  if (pin) {
+    await db
+      .delete(conversationPinsTable)
+      .where(
+        and(
+          eq(conversationPinsTable.conversationId, message.conversationId),
+          eq(conversationPinsTable.messageId, messageId)
+        )
+      );
+
+    // Reindex remaining pins to keep pinOrder contiguous
+    const remaining = await db
+      .select({
+        id: conversationPinsTable.id,
+        pinOrder: conversationPinsTable.pinOrder
+      })
+      .from(conversationPinsTable)
+      .where(eq(conversationPinsTable.conversationId, message.conversationId))
+      .orderBy(asc(conversationPinsTable.pinOrder));
+
+    for (let i = 0; i < remaining.length; i++) {
+      const newOrder = i + 1;
+      if (remaining[i].pinOrder !== newOrder) {
+        await db
+          .update(conversationPinsTable)
+          .set({ pinOrder: newOrder })
+          .where(eq(conversationPinsTable.id, remaining[i].id));
+      }
+    }
+
+    const activeMembers = await db
+      .select({ userId: conversationMembersTable.userId })
+      .from(conversationMembersTable)
+      .where(
+        and(
+          eq(conversationMembersTable.conversationId, message.conversationId),
+          isNull(conversationMembersTable.leftAt)
+        )
+      );
+
+    const memberIds = activeMembers.map(m => m.userId);
+    const updatedPins = await conversationService.getConversationPins(
+      message.conversationId
+    );
+    socketEmitter.emitConversationPinUpdated(
+      message.conversationId,
+      memberIds,
+      updatedPins
+    );
+  }
+
+  // Hard delete
+  await db.delete(messagesTable).where(eq(messagesTable.id, messageId));
+
+  // Get active members to notify them via socket
+  const activeMembers = await db
+    .select({ userId: conversationMembersTable.userId })
+    .from(conversationMembersTable)
+    .where(
+      and(
+        eq(conversationMembersTable.conversationId, message.conversationId),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+  const memberIds = activeMembers.map(m => m.userId);
+
+  // Emit message deleted socket event
+  socketEmitter.emitMessageDeleted(
+    message.conversationId,
+    memberIds,
+    messageId
+  );
+}
+
+export type ToggleMessageReactionInput = {
+  conversationId: number;
+  messageId: number;
+  userId: number;
+  emoji: string;
+};
+
+async function toggleMessageReaction(input: ToggleMessageReactionInput) {
+  await conversationService.ensureActiveConversationMember(
+    input.conversationId,
+    input.userId
+  );
+
+  const message = await db.query.messagesTable.findFirst({
+    where: eq(messagesTable.id, input.messageId)
+  });
+
+  if (!message) {
+    throw ApiError.notFound("Message not found");
+  }
+
+  if (message.conversationId !== input.conversationId) {
+    throw ApiError.badRequest("Message does not belong to this conversation");
+  }
+
+  if (message.isDeleted) {
+    throw ApiError.badRequest("Cannot react to a recalled message");
+  }
+
+  const existingReaction = await db.query.messageReactionsTable.findFirst({
+    where: and(
+      eq(messageReactionsTable.messageId, input.messageId),
+      eq(messageReactionsTable.userId, input.userId),
+      eq(messageReactionsTable.emoji, input.emoji)
+    )
+  });
+
+  if (existingReaction) {
+    await db
+      .delete(messageReactionsTable)
+      .where(eq(messageReactionsTable.id, existingReaction.id));
+  } else {
+    await db.insert(messageReactionsTable).values({
+      messageId: input.messageId,
+      userId: input.userId,
+      emoji: input.emoji
+    });
+  }
+
+  const updatedMessage = await db.query.messagesTable.findFirst({
+    where: eq(messagesTable.id, input.messageId),
+    with: {
+      replyTo: {
+        with: { sender: true }
+      },
+      sender: true,
+      reactions: {
+        with: {
+          user: {
+            columns: {
+              id: true,
+              displayName: true,
+              avatar: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!updatedMessage) {
+    throw ApiError.notFound("Message not found");
+  }
+
+  const activeMembers = await db
+    .select({ userId: conversationMembersTable.userId })
+    .from(conversationMembersTable)
+    .where(
+      and(
+        eq(conversationMembersTable.conversationId, input.conversationId),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+  const memberIds = activeMembers.map(m => m.userId);
+
+  const replyPreview = await loadReplyPreview(
+    updatedMessage.replyToId ?? undefined
+  );
+
+  socketEmitter.emitMessageUpdated(input.conversationId, memberIds, {
+    message: updatedMessage as MessageWithReactions,
+    replyTo: replyPreview
+  });
+
+  return updatedMessage;
 }
 
 export const messageService = {
   listConversationMessages,
   sendConversationTextMessage,
   sendDirectTextMessage,
-  deleteMessage
+  recallMessage,
+  deleteMessage,
+  toggleMessageReaction
 };

@@ -1,4 +1,3 @@
-import * as React from "react"
 import { useTranslation } from "react-i18next"
 
 import { useChat } from "../lib/use-chat"
@@ -37,9 +36,15 @@ export function ChatView() {
     setPinConfirmOpen,
     unpinConfirmOpen,
     setUnpinConfirmOpen,
+    recallConfirmOpen,
+    setRecallConfirmOpen,
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
     setSelectedMessage,
     handlePinConfirm,
     handleUnpinConfirm,
+    handleRecallConfirm,
+    handleDeleteConfirm,
     otherMemberLastReadId,
     getSenderName,
     currentUserId,
@@ -84,6 +89,8 @@ export function ChatView() {
         setSelectedMessage={setSelectedMessage}
         setPinConfirmOpen={setPinConfirmOpen}
         setUnpinConfirmOpen={setUnpinConfirmOpen}
+        setRecallConfirmOpen={setRecallConfirmOpen}
+        setDeleteConfirmOpen={setDeleteConfirmOpen}
         pins={pins}
         highlightedMessageId={highlightedMessageId}
         scrollHintMode={scrollHintMode}
@@ -109,8 +116,14 @@ export function ChatView() {
         setPinConfirmOpen={setPinConfirmOpen}
         unpinConfirmOpen={unpinConfirmOpen}
         setUnpinConfirmOpen={setUnpinConfirmOpen}
+        recallConfirmOpen={recallConfirmOpen}
+        setRecallConfirmOpen={setRecallConfirmOpen}
+        deleteConfirmOpen={deleteConfirmOpen}
+        setDeleteConfirmOpen={setDeleteConfirmOpen}
         handlePinConfirm={handlePinConfirm}
         handleUnpinConfirm={handleUnpinConfirm}
+        handleRecallConfirm={handleRecallConfirm}
+        handleDeleteConfirm={handleDeleteConfirm}
         setSelectedMessage={setSelectedMessage}
       />
     </div>

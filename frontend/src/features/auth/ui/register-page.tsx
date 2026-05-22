@@ -6,10 +6,7 @@ import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
-import {
-  type RegisterFormData,
-  registerSchema,
-} from "@/features/auth"
+import { type RegisterFormData, registerSchema } from "@/features/auth"
 
 import { useRegister } from "@/shared/api"
 import { Button } from "@/shared/ui/button"
@@ -271,7 +268,9 @@ export function RegisterPage() {
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor={field.name}>Xác nhận mật khẩu</FieldLabel>
+                  <FieldLabel htmlFor={field.name}>
+                    Xác nhận mật khẩu
+                  </FieldLabel>
                   <div className="relative">
                     <Input
                       {...field}
@@ -284,7 +283,9 @@ export function RegisterPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
                       className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
                       {showConfirmPassword ? (

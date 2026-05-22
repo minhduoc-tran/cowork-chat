@@ -22,12 +22,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const socket = connectSocket()
 
     socket.on("connect", () => {
-       
       console.log("[socket] connected:", socket.id)
     })
 
     socket.on("disconnect", (reason) => {
-       
       console.log("[socket] disconnected:", reason)
     })
 

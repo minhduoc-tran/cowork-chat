@@ -40,15 +40,17 @@ export function ChatInputPanel({
   return (
     <div className={cn("shrink-0", !isOtherUserTyping && "border-t")}>
       {isOtherUserTyping && (
-        <div className="px-4 pt-2.5 pb-0.5 text-xs font-semibold text-primary animate-pulse animate-in fade-in duration-200">
+        <div className="animate-in animate-pulse px-4 pt-2.5 pb-0.5 text-xs font-semibold text-primary duration-200 fade-in">
           {t("chat.typing", { name: friend?.displayName })}
         </div>
       )}
       {replyDraft && (
-        <div className={cn(
-          "flex items-start gap-3 border-b bg-muted/35 px-3 py-2",
-          isOtherUserTyping && "border-t"
-        )}>
+        <div
+          className={cn(
+            "flex items-start gap-3 border-b bg-muted/35 px-3 py-2",
+            isOtherUserTyping && "border-t"
+          )}
+        >
           <button
             type="button"
             onClick={() => scrollToMessage(replyDraft.id)}
@@ -76,10 +78,12 @@ export function ChatInputPanel({
         </div>
       )}
       {/* Message input */}
-      <div className={cn(
-        "flex items-center gap-2 px-3 py-2.5",
-        isOtherUserTyping && !replyDraft && "border-t"
-      )}>
+      <div
+        className={cn(
+          "flex items-center gap-2 px-3 py-2.5",
+          isOtherUserTyping && !replyDraft && "border-t"
+        )}
+      >
         <input
           type="text"
           value={input}
