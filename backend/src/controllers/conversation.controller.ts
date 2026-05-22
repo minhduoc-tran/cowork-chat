@@ -80,6 +80,32 @@ async function listMessages(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function listPins(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+
+    if (!Number.isInteger(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    // Ensure caller is a member before exposing pin data
+    await conversationService.ensureActiveConversationMember(
+      conversationId,
+      req.user.id
+    );
+
+    const pins = await conversationService.getConversationPins(conversationId);
+
+    return ApiResponse.ok(res, "Pins fetched successfully", { pins });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function pinMessage(req: Request, res: Response, next: NextFunction) {
   try {
     if (!req.user?.id) {
@@ -88,6 +114,7 @@ async function pinMessage(req: Request, res: Response, next: NextFunction) {
 
     const conversationId = Number(req.params.conversationId);
     const messageId = Number(req.body.messageId);
+    const notify = req.body.notify === true || req.body.notify === "true";
 
     if (!Number.isInteger(conversationId) || conversationId < 1) {
       throw ApiError.badRequest("Invalid conversation ID");
@@ -97,13 +124,14 @@ async function pinMessage(req: Request, res: Response, next: NextFunction) {
       throw ApiError.badRequest("Invalid message ID");
     }
 
-    const pin = await conversationService.pinConversationMessage({
+    const pins = await conversationService.pinConversationMessage({
       conversationId,
       messageId,
-      userId: req.user.id
+      userId: req.user.id,
+      notify
     });
 
-    return ApiResponse.ok(res, "Message pinned successfully", { pin });
+    return ApiResponse.ok(res, "Message pinned successfully", { pins });
   } catch (error) {
     return next(error);
   }
@@ -116,17 +144,23 @@ async function unpinMessage(req: Request, res: Response, next: NextFunction) {
     }
 
     const conversationId = Number(req.params.conversationId);
+    const messageId = Number(req.params.messageId);
 
     if (!Number.isInteger(conversationId) || conversationId < 1) {
       throw ApiError.badRequest("Invalid conversation ID");
     }
 
-    const pin = await conversationService.unpinConversationMessage({
+    if (!Number.isInteger(messageId) || messageId < 1) {
+      throw ApiError.badRequest("Invalid message ID");
+    }
+
+    const pins = await conversationService.unpinConversationMessage({
       conversationId,
+      messageId,
       userId: req.user.id
     });
 
-    return ApiResponse.ok(res, "Message unpinned successfully", { pin });
+    return ApiResponse.ok(res, "Message unpinned successfully", { pins });
   } catch (error) {
     return next(error);
   }
@@ -136,6 +170,7 @@ export const conversationController = {
   createGroup,
   listConversations,
   listMessages,
+  listPins,
   pinMessage,
   unpinMessage
 };

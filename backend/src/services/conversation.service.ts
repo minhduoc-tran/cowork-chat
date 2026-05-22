@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, desc, aliasedTable } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, desc, aliasedTable, max, sql } from "drizzle-orm";
 import {
   conversationMembersTable,
   conversationsTable,
@@ -398,15 +398,20 @@ async function markConversationAsRead(conversationId: number, userId: number) {
   return { conversationId, userId, lastReadMessageId: latestMessage.id };
 }
 
-async function getConversationPin(conversationId: number) {
+// ---------------------------------------------------------------------------
+// Pin helpers
+// ---------------------------------------------------------------------------
+
+async function getConversationPins(conversationId: number) {
   const pinnerUser = aliasedTable(usersTable, "pinner_user");
   const messageSenderUser = aliasedTable(usersTable, "message_sender_user");
 
-  const [pinRow] = await db
+  const pinRows = await db
     .select({
       conversationId: conversationPinsTable.conversationId,
       messageId: conversationPinsTable.messageId,
       pinnedById: conversationPinsTable.pinnedById,
+      pinOrder: conversationPinsTable.pinOrder,
       pinnedAt: conversationPinsTable.pinnedAt,
       pinnedByName: pinnerUser.displayName,
       messagePreview: {
@@ -428,34 +433,57 @@ async function getConversationPin(conversationId: number) {
       eq(messagesTable.senderId, messageSenderUser.id)
     )
     .where(eq(conversationPinsTable.conversationId, conversationId))
-    .limit(1);
+    .orderBy(asc(conversationPinsTable.pinOrder));
 
-  if (!pinRow) {
-    return null;
-  }
-
-  return {
-    conversationId: pinRow.conversationId,
-    messageId: pinRow.messageId,
-    pinnedById: pinRow.pinnedById,
-    pinnedByName: pinRow.pinnedByName,
-    pinnedAt: pinRow.pinnedAt.toISOString(),
+  return pinRows.map(row => ({
+    conversationId: row.conversationId,
+    messageId: row.messageId,
+    pinnedById: row.pinnedById,
+    pinnedByName: row.pinnedByName ?? "Unknown",
+    pinnedAt: row.pinnedAt.toISOString(),
+    pinOrder: row.pinOrder,
     messagePreview: {
-      id: pinRow.messagePreview.id,
-      content: pinRow.messagePreview.content,
-      senderId: pinRow.messagePreview.senderId,
-      senderName: pinRow.messagePreview.senderName ?? "Unknown",
-      createdAt: pinRow.messagePreview.createdAt.toISOString()
+      id: row.messagePreview.id,
+      content: row.messagePreview.content,
+      senderId: row.messagePreview.senderId,
+      senderName: row.messagePreview.senderName ?? "Unknown",
+      createdAt: row.messagePreview.createdAt.toISOString()
     }
-  };
+  }));
+}
+
+/**
+ * Reindex pinOrder for a conversation so they are contiguous 1..n.
+ * Must be called after a pin is deleted.
+ */
+async function reindexPins(conversationId: number) {
+  const pins = await db
+    .select({
+      id: conversationPinsTable.id,
+      pinOrder: conversationPinsTable.pinOrder
+    })
+    .from(conversationPinsTable)
+    .where(eq(conversationPinsTable.conversationId, conversationId))
+    .orderBy(asc(conversationPinsTable.pinOrder));
+
+  for (let i = 0; i < pins.length; i++) {
+    const newOrder = i + 1;
+    if (pins[i].pinOrder !== newOrder) {
+      await db
+        .update(conversationPinsTable)
+        .set({ pinOrder: newOrder })
+        .where(eq(conversationPinsTable.id, pins[i].id));
+    }
+  }
 }
 
 async function pinConversationMessage(input: {
   conversationId: number;
   messageId: number;
   userId: number;
+  notify?: boolean;
 }) {
-  const { conversationId, messageId, userId } = input;
+  const { conversationId, messageId, userId, notify = false } = input;
 
   await ensureActiveConversationMember(conversationId, userId);
 
@@ -464,9 +492,7 @@ async function pinConversationMessage(input: {
       eq(messagesTable.id, messageId),
       eq(messagesTable.conversationId, conversationId)
     ),
-    with: {
-      sender: true
-    }
+    with: { sender: true }
   });
 
   if (!message) {
@@ -477,6 +503,18 @@ async function pinConversationMessage(input: {
     throw ApiError.badRequest("Cannot pin a deleted message");
   }
 
+  // Reject duplicate pin for the same (conversationId, messageId)
+  const existingPin = await db.query.conversationPinsTable.findFirst({
+    where: and(
+      eq(conversationPinsTable.conversationId, conversationId),
+      eq(conversationPinsTable.messageId, messageId)
+    )
+  });
+
+  if (existingPin) {
+    throw ApiError.badRequest("Message is already pinned");
+  }
+
   const pinner = await db.query.usersTable.findFirst({
     where: eq(usersTable.id, userId)
   });
@@ -485,40 +523,35 @@ async function pinConversationMessage(input: {
     throw ApiError.notFound("User not found");
   }
 
+  // Compute next pinOrder
+  const [maxRow] = await db
+    .select({ maxOrder: max(conversationPinsTable.pinOrder) })
+    .from(conversationPinsTable)
+    .where(eq(conversationPinsTable.conversationId, conversationId));
+
+  const nextOrder = (maxRow?.maxOrder ?? 0) + 1;
   const pinnedAt = new Date();
 
-  const [pinRow] = await db
-    .insert(conversationPinsTable)
-    .values({
-      conversationId,
-      messageId,
-      pinnedById: userId,
-      pinnedAt
-    })
-    .onConflictDoUpdate({
-      target: conversationPinsTable.conversationId,
-      set: {
-        messageId,
-        pinnedById: userId,
-        pinnedAt
-      }
-    })
-    .returning();
+  await db.insert(conversationPinsTable).values({
+    conversationId,
+    messageId,
+    pinnedById: userId,
+    pinOrder: nextOrder,
+    pinnedAt
+  });
 
-  const payload = {
-    conversationId: pinRow.conversationId,
-    messageId: pinRow.messageId,
-    pinnedById: pinRow.pinnedById,
-    pinnedByName: pinner.displayName,
-    pinnedAt: pinRow.pinnedAt.toISOString(),
-    messagePreview: {
-      id: message.id,
-      content: message.content,
-      senderId: message.senderId,
-      senderName: message.sender?.displayName ?? "Unknown",
-      createdAt: message.createdAt.toISOString()
-    }
-  };
+  // Optional system message: "[Name] pinned a message"
+  if (notify) {
+    const systemContent = `${pinner.displayName} pinned a message`;
+    await db.insert(messagesTable).values({
+      conversationId,
+      senderId: userId,
+      type: "system",
+      content: systemContent,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+  }
 
   const activeMembers = await db
     .select({ userId: conversationMembersTable.userId })
@@ -531,23 +564,34 @@ async function pinConversationMessage(input: {
     );
 
   const memberIds = activeMembers.map(m => m.userId);
+  const pins = await getConversationPins(conversationId);
 
-  socketEmitter.emitConversationPinUpdated(conversationId, memberIds, payload);
+  socketEmitter.emitConversationPinUpdated(conversationId, memberIds, pins);
 
-  return payload;
+  return pins;
 }
 
 async function unpinConversationMessage(input: {
   conversationId: number;
+  messageId: number;
   userId: number;
 }) {
-  const { conversationId, userId } = input;
+  const { conversationId, messageId, userId } = input;
 
   await ensureActiveConversationMember(conversationId, userId);
 
+  // Delete the specific pin row
   await db
     .delete(conversationPinsTable)
-    .where(eq(conversationPinsTable.conversationId, conversationId));
+    .where(
+      and(
+        eq(conversationPinsTable.conversationId, conversationId),
+        eq(conversationPinsTable.messageId, messageId)
+      )
+    );
+
+  // Reindex remaining pins
+  await reindexPins(conversationId);
 
   const activeMembers = await db
     .select({ userId: conversationMembersTable.userId })
@@ -560,10 +604,11 @@ async function unpinConversationMessage(input: {
     );
 
   const memberIds = activeMembers.map(m => m.userId);
+  const pins = await getConversationPins(conversationId);
 
-  socketEmitter.emitConversationPinUpdated(conversationId, memberIds, null);
+  socketEmitter.emitConversationPinUpdated(conversationId, memberIds, pins);
 
-  return null;
+  return pins;
 }
 
 export const conversationService = {
@@ -574,7 +619,7 @@ export const conversationService = {
   listActiveConversationMemberIds,
   listUserConversations,
   markConversationAsRead,
-  getConversationPin,
+  getConversationPins,
   pinConversationMessage,
   unpinConversationMessage
 };

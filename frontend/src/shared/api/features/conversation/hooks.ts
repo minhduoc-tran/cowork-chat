@@ -31,3 +31,13 @@ export function useConversationMessages(
     enabled: conversationId !== null,
   })
 }
+
+export function useConversationPins(conversationId: number | null) {
+  return useQuery({
+    queryKey: ["pins", conversationId],
+    queryFn: () =>
+      conversationApi.listPins(conversationId!).then((res) => res.data.data.pins ?? []),
+    enabled: conversationId !== null,
+  })
+}
+

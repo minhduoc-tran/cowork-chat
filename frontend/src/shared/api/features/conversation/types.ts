@@ -62,6 +62,7 @@ export interface ConversationPin {
   pinnedById: number
   pinnedByName: string
   pinnedAt: string
+  pinOrder: number
   messagePreview: {
     id: number
     content: string | null
@@ -75,7 +76,7 @@ export interface ConversationListItem {
   conversation: Conversation
   members: ConversationMember[]
   lastMessage: ConversationMessage | null
-  pin: ConversationPin | null
+  pins: ConversationPin[]
 }
 
 export interface ConversationListResponse {
@@ -84,5 +85,5 @@ export interface ConversationListResponse {
 
 export interface ConversationMessageListResponse {
   messages: Array<ConversationMessage | ConversationMessageWithReply>
-  pin: ConversationPin | null
+  pins: ConversationPin[]
 }

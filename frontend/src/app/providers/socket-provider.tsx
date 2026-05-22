@@ -68,7 +68,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     })
 
     // Conversation pin updated
-    socket.on("conversation.pin.updated", () => {
+    socket.on("pin:updated", () => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] })
     })
 

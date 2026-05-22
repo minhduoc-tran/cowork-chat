@@ -26,6 +26,20 @@ function getConversationPinRoute(conversationId: number) {
   )
 }
 
+function getConversationPinsRoute(conversationId: number) {
+  return CONVERSATION_ROUTES.PINS.replace(
+    ":conversationId",
+    String(conversationId)
+  )
+}
+
+function getConversationUnpinRoute(conversationId: number, messageId: number) {
+  return CONVERSATION_ROUTES.UNPIN.replace(
+    ":conversationId",
+    String(conversationId)
+  ).replace(":messageId", String(messageId))
+}
+
 function unwrapMessage(
   item: ConversationMessage | ConversationMessageWithReply
 ): ConversationMessageRecord {
@@ -61,25 +75,30 @@ export const conversationApi = {
     conversationId: number,
     limit = 50,
     before?: number
-  ): Promise<{ messages: ConversationMessageRecord[]; pin: ConversationPin | null }> => {
+  ): Promise<{ messages: ConversationMessageRecord[]; pins: ConversationPin[] }> => {
     const res = await apiClient.get<
       ApiResponse<ConversationMessageListResponse>
     >(getConversationMessagesRoute(conversationId), { params: { limit, before } })
 
     const messages = (res.data.data.messages ?? []).map(unwrapMessage).reverse()
-    const pin = res.data.data.pin ?? null
+    const pins = res.data.data.pins ?? []
 
-    return { messages, pin }
+    return { messages, pins }
   },
 
-  pinMessage: (conversationId: number, messageId: number) =>
-    apiClient.put<ApiResponse<{ pin: ConversationPin | null }>>(
-      getConversationPinRoute(conversationId),
-      { messageId }
+  listPins: (conversationId: number) =>
+    apiClient.get<ApiResponse<{ pins: ConversationPin[] }>>(
+      getConversationPinsRoute(conversationId)
     ),
 
-  unpinMessage: (conversationId: number) =>
-    apiClient.delete<ApiResponse<{ pin: ConversationPin | null }>>(
-      getConversationPinRoute(conversationId)
+  pinMessage: (conversationId: number, messageId: number, notify = false) =>
+    apiClient.put<ApiResponse<{ pins: ConversationPin[] }>>(
+      getConversationPinRoute(conversationId),
+      { messageId, notify }
+    ),
+
+  unpinMessage: (conversationId: number, messageId: number) =>
+    apiClient.delete<ApiResponse<{ pins: ConversationPin[] }>>(
+      getConversationUnpinRoute(conversationId, messageId)
     ),
 }

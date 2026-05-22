@@ -1,4 +1,4 @@
-import { eq, desc, and, isNull, lt } from "drizzle-orm";
+import { eq, desc, and, isNull, lt, asc, max } from "drizzle-orm";
 import {
   db,
   messagesTable,
@@ -199,7 +199,7 @@ async function listConversationMessages(input: ListConversationMessagesInput) {
     }
   });
 
-  const pin = await conversationService.getConversationPin(input.conversationId);
+  const pins = await conversationService.getConversationPins(input.conversationId);
 
   return {
     messages: messages.map(msg =>
@@ -216,7 +216,7 @@ async function listConversationMessages(input: ListConversationMessagesInput) {
           : null
       )
     ),
-    pin
+    pins
   };
 }
 
@@ -382,9 +382,35 @@ async function deleteMessage(messageId: number, userId: number) {
   });
 
   if (pin) {
+    // Only delete the affected pin row (not all pins for this conversation)
     await db
       .delete(conversationPinsTable)
-      .where(eq(conversationPinsTable.conversationId, message.conversationId));
+      .where(
+        and(
+          eq(conversationPinsTable.conversationId, message.conversationId),
+          eq(conversationPinsTable.messageId, messageId)
+        )
+      );
+
+    // Reindex remaining pins to keep pinOrder contiguous
+    const remaining = await db
+      .select({
+        id: conversationPinsTable.id,
+        pinOrder: conversationPinsTable.pinOrder
+      })
+      .from(conversationPinsTable)
+      .where(eq(conversationPinsTable.conversationId, message.conversationId))
+      .orderBy(asc(conversationPinsTable.pinOrder));
+
+    for (let i = 0; i < remaining.length; i++) {
+      const newOrder = i + 1;
+      if (remaining[i].pinOrder !== newOrder) {
+        await db
+          .update(conversationPinsTable)
+          .set({ pinOrder: newOrder })
+          .where(eq(conversationPinsTable.id, remaining[i].id));
+      }
+    }
 
     const activeMembers = await db
       .select({ userId: conversationMembersTable.userId })
@@ -397,10 +423,11 @@ async function deleteMessage(messageId: number, userId: number) {
       );
 
     const memberIds = activeMembers.map(m => m.userId);
+    const updatedPins = await conversationService.getConversationPins(message.conversationId);
     socketEmitter.emitConversationPinUpdated(
       message.conversationId,
       memberIds,
-      null
+      updatedPins
     );
   }
 }

@@ -81,6 +81,7 @@ export type ConversationPinPayload = {
   pinnedById: number;
   pinnedByName: string;
   pinnedAt: string;
+  pinOrder: number;
   messagePreview: {
     id: number;
     content: string | null;
@@ -90,7 +91,8 @@ export type ConversationPinPayload = {
   };
 };
 
+// Event: "pin:updated" — always carries full ordered list after any mutation
 export type ConversationPinUpdatedPayload = {
   conversationId: number;
-  pin: ConversationPinPayload | null;
+  pins: ConversationPinPayload[];
 };

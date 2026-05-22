@@ -11,6 +11,8 @@ export const CONVERSATION_ROUTES = {
   MESSAGES: "/api/v1/conversations/:conversationId/messages",
   CREATE_GROUP: "/api/v1/conversations/groups",
   PIN: "/api/v1/conversations/:conversationId/pin",
+  PINS: "/api/v1/conversations/:conversationId/pins",
+  UNPIN: "/api/v1/conversations/:conversationId/pins/:messageId",
 } as const
 
 export const FRIEND_ROUTES = {

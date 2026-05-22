@@ -103,16 +103,13 @@ export const socketEmitter = {
   emitConversationPinUpdated(
     conversationId: number,
     userIds: number[],
-    pin: ConversationPinPayload | null
+    pins: ConversationPinPayload[]
   ) {
     const io = getSocketServer();
-    const payload = { conversationId, pin };
-    io.to(`conversation:${conversationId}`).emit(
-      "conversation.pin.updated",
-      payload
-    );
+    const payload = { conversationId, pins };
+    io.to(`conversation:${conversationId}`).emit("pin:updated", payload);
     userIds.forEach(userId => {
-      io.to(`user:${userId}`).emit("conversation.pin.updated", payload);
+      io.to(`user:${userId}`).emit("pin:updated", payload);
     });
   }
 };

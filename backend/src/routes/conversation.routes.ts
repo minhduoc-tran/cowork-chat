@@ -7,8 +7,12 @@ const router = Router();
 router.use(authMiddleware);
 router.get("/", conversationController.listConversations);
 router.get("/:conversationId/messages", conversationController.listMessages);
+router.get("/:conversationId/pins", conversationController.listPins);
 router.post("/groups", conversationController.createGroup);
 router.put("/:conversationId/pin", conversationController.pinMessage);
-router.delete("/:conversationId/pin", conversationController.unpinMessage);
+router.delete(
+  "/:conversationId/pins/:messageId",
+  conversationController.unpinMessage
+);
 
 export default router;

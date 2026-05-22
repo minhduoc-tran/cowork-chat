@@ -3,7 +3,8 @@ import {
   varchar,
   integer,
   timestamp,
-  index
+  index,
+  unique
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { usersTable } from "./user.schema";
@@ -23,10 +24,10 @@ export const conversationsTable = pgTable("conversations", {
 
 export const conversationsRelations = relations(
   conversationsTable,
-  ({ one, many }) => ({
+  ({ many }) => ({
     members: many(conversationMembersTable),
     messages: many(messagesTable),
-    pin: one(conversationPinsTable)
+    pins: many(conversationPinsTable)
   })
 );
 
@@ -77,21 +78,29 @@ export const conversationPinsTable = pgTable(
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     conversationId: integer("conversation_id")
       .notNull()
-      .references(() => conversationsTable.id, { onDelete: "cascade" })
-      .unique(),
+      .references(() => conversationsTable.id, { onDelete: "cascade" }),
     messageId: integer("message_id")
       .notNull()
       .references(() => messagesTable.id, { onDelete: "cascade" }),
     pinnedById: integer("pinned_by_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
+    pinOrder: integer("pin_order").notNull().default(1),
     pinnedAt: timestamp("pinned_at", { withTimezone: true })
       .defaultNow()
       .notNull()
   },
   table => [
     index("conversation_pins_conversation_idx").on(table.conversationId),
-    index("conversation_pins_message_idx").on(table.messageId)
+    index("conversation_pins_message_idx").on(table.messageId),
+    index("conversation_pins_conversation_order_idx").on(
+      table.conversationId,
+      table.pinOrder
+    ),
+    unique("conversation_pins_conversation_message_uidx").on(
+      table.conversationId,
+      table.messageId
+    )
   ]
 );
 
