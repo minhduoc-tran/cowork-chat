@@ -20,6 +20,7 @@ import { useConversations, useFriends } from "@/shared/api"
 import { type NavUserProfile } from "@/shared/lib/nav-user.utils"
 import { cn } from "@/shared/lib/utils"
 import { AddFriendDialog } from "@/shared/ui/add-friend-dialog"
+import { getConversationPreviewText } from "@/shared/ui/app-sidebar-preview"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { NavUser } from "@/shared/ui/nav-user"
 import {
@@ -249,16 +250,9 @@ function ConversationsPanel({
                 </span>
               )}
             </div>
-            {item.lastMessage && (
-              <span className="line-clamp-1 min-w-0 text-xs text-muted-foreground">
-                {item.lastMessage.content || t("sidebar.systemMessage")}
-              </span>
-            )}
-            {!item.lastMessage && (
-              <span className="text-xs text-muted-foreground">
-                {t("sidebar.noMessages")}
-              </span>
-            )}
+            <span className="line-clamp-1 min-w-0 text-xs text-muted-foreground">
+              {getConversationPreviewText(item.lastMessage, t)}
+            </span>
           </div>
         </Link>
       ))}

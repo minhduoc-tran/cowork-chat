@@ -391,6 +391,9 @@ export function useChat() {
         selectedMessage.id
       )
       if (res.data.success) {
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations"],
+        })
         toast.success(t("chat.recallSuccess"))
       } else {
         toast.error(t("chat.recallError"))
@@ -412,6 +415,9 @@ export function useChat() {
         selectedMessage.id
       )
       if (res.data.success) {
+        void queryClient.invalidateQueries({
+          queryKey: ["conversations"],
+        })
         toast.success(t("chat.deleteSuccess"))
       } else {
         toast.error(t("chat.deleteError"))

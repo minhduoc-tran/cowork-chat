@@ -65,6 +65,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] })
     })
 
+    socket.on("message.updated", () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    })
+
+    socket.on("message.deleted", () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    })
+
     // Conversation pin updated
     socket.on("pin:updated", () => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] })
