@@ -296,6 +296,11 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
       x: number
       y: number
     } | null>(null)
+    const [scrollEl, setScrollEl] = React.useState<HTMLDivElement | null>(null)
+
+    React.useEffect(() => {
+      setScrollEl(scrollRef.current)
+    }, [scrollRef])
 
     const showQuickBar =
       isHovered && !msg.isDeleted && !pickerOpen && !contextMenu
@@ -433,255 +438,260 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
                   onTouchMove={handleTouchMove}
                 >
                   {msg.isDeleted ? (
-                <div
-                  className={cn(
-                    "rounded-2xl border px-4 py-2 text-sm italic transition-shadow select-none",
-                    isMine
-                      ? "border-primary/15 bg-primary/5 text-primary/70"
-                      : "border-border/40 bg-muted/40 text-muted-foreground/75"
-                  )}
-                >
-                  {t("chat.recalledMessage")}
-                </div>
-              ) : (
-                <div
-                  className={cn(
-                    "rounded-2xl px-4 py-2 text-sm transition-shadow",
-                    isMine
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground",
-                    highlightedMessageId === msg.id &&
-                      "ring-2 ring-primary/35 ring-offset-2 ring-offset-background"
-                  )}
-                >
-                  {msg.replyTo && (
-                    <button
-                      type="button"
-                      onClick={() => scrollToMessage(msg.replyTo!.id)}
+                    <div
                       className={cn(
-                        "mb-2 block w-full rounded-lg border-l-2 px-3 py-2 text-left transition-colors",
+                        "rounded-2xl border px-4 py-2 text-sm italic transition-shadow select-none",
                         isMine
-                          ? "border-primary-foreground/55 bg-primary-foreground/10 hover:bg-primary-foreground/15"
-                          : "border-primary/55 bg-background/70 hover:bg-background"
+                          ? "border-primary/15 bg-primary/5 text-primary/70"
+                          : "border-border/40 bg-muted/40 text-muted-foreground/75"
                       )}
                     >
+                      {t("chat.recalledMessage")}
+                    </div>
+                  ) : (
+                    <div
+                      className={cn(
+                        "rounded-2xl px-4 py-2 text-sm transition-shadow",
+                        isMine
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-foreground",
+                        highlightedMessageId === msg.id &&
+                          "ring-2 ring-primary/35 ring-offset-2 ring-offset-background"
+                      )}
+                    >
+                      {msg.replyTo && (
+                        <button
+                          type="button"
+                          onClick={() => scrollToMessage(msg.replyTo!.id)}
+                          className={cn(
+                            "mb-2 block w-full rounded-lg border-l-2 px-3 py-2 text-left transition-colors",
+                            isMine
+                              ? "border-primary-foreground/55 bg-primary-foreground/10 hover:bg-primary-foreground/15"
+                              : "border-primary/55 bg-background/70 hover:bg-background"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "truncate text-[11px] font-semibold",
+                              isMine
+                                ? "text-primary-foreground/85"
+                                : "text-primary"
+                            )}
+                          >
+                            {msg.replyTo.senderName}
+                          </div>
+                          <div
+                            className={cn(
+                              "truncate text-[11px]",
+                              isMine
+                                ? "text-primary-foreground/70"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {getMessagePreview(
+                              msg.replyTo.content,
+                              t("chat.messageUnavailable")
+                            )}
+                          </div>
+                        </button>
+                      )}
+
+                      <p className="wrap-break-word whitespace-pre-wrap">
+                        {renderMessageContent(msg.content, isMine)}
+                      </p>
+
+                      {msg.linkPreview && (
+                        <a
+                          href={msg.linkPreview.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={cn(
+                            "group mt-2 block cursor-pointer border-l-[3px] pl-3 text-left",
+                            isMine
+                              ? "border-primary-foreground/60"
+                              : "border-primary"
+                          )}
+                        >
+                          <div>
+                            {msg.linkPreview.siteName && (
+                              <div
+                                className={cn(
+                                  "text-[10px] font-bold tracking-wide uppercase",
+                                  isMine
+                                    ? "text-primary-foreground/90"
+                                    : "text-primary"
+                                )}
+                              >
+                                {msg.linkPreview.siteName}
+                              </div>
+                            )}
+                            {msg.linkPreview.title && (
+                              <div
+                                className={cn(
+                                  "mt-0.5 line-clamp-2 text-xs leading-tight font-bold",
+                                  isMine
+                                    ? "text-primary-foreground"
+                                    : "text-foreground"
+                                )}
+                              >
+                                {msg.linkPreview.title}
+                              </div>
+                            )}
+                            {msg.linkPreview.description && (
+                              <div
+                                className={cn(
+                                  "mt-1 line-clamp-3 text-[11px] leading-normal",
+                                  isMine
+                                    ? "text-primary-foreground/80"
+                                    : "text-muted-foreground"
+                                )}
+                              >
+                                {msg.linkPreview.description}
+                              </div>
+                            )}
+                            {msg.linkPreview.imageUrl && (
+                              <div className="mt-2.5 aspect-video w-full max-w-[360px] overflow-hidden rounded-lg">
+                                <img
+                                  src={msg.linkPreview.imageUrl}
+                                  alt={msg.linkPreview.title || "Preview"}
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.parentElement?.remove()
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </a>
+                      )}
+
                       <div
                         className={cn(
-                          "truncate text-[11px] font-semibold",
-                          isMine ? "text-primary-foreground/85" : "text-primary"
-                        )}
-                      >
-                        {msg.replyTo.senderName}
-                      </div>
-                      <div
-                        className={cn(
-                          "truncate text-[11px]",
+                          "mt-1 flex items-center gap-1 text-[10px]",
                           isMine
                             ? "text-primary-foreground/70"
                             : "text-muted-foreground"
                         )}
                       >
-                        {getMessagePreview(
-                          msg.replyTo.content,
-                          t("chat.messageUnavailable")
+                        {formatTime(msg.createdAt)}
+                        {isPinned && (
+                          <PinIcon className="size-3 shrink-0 rotate-45 fill-current" />
                         )}
+                        {isMine &&
+                          (isRead ? (
+                            <CheckCheckIcon className="size-3.5" />
+                          ) : (
+                            <CheckIcon className="size-3.5" />
+                          ))}
                       </div>
-                    </button>
-                  )}
 
-                  <p className="wrap-break-word whitespace-pre-wrap">
-                    {renderMessageContent(msg.content, isMine)}
-                  </p>
+                      {groupedReactions.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          <TooltipProvider>
+                            {groupedReactions.map((group) => {
+                              const displayedNames = group.userNames.map(
+                                (name, i) =>
+                                  group.userIds[i] === currentUserId
+                                    ? t("chat.tooltipYou")
+                                    : name
+                              )
+                              const tooltipText =
+                                displayedNames.length <= 3
+                                  ? `${displayedNames.join(", ")} ${t("chat.tooltipReacted")}`
+                                  : `${displayedNames.slice(0, 3).join(", ")} ${t(
+                                      "chat.tooltipAndOthers",
+                                      {
+                                        count: displayedNames.length - 3,
+                                      }
+                                    )} ${t("chat.tooltipReacted")}`
 
-                  {msg.linkPreview && (
-                    <a
-                      href={msg.linkPreview.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={cn(
-                        "group mt-2 block cursor-pointer border-l-[3px] pl-3 text-left",
-                        isMine
-                          ? "border-primary-foreground/60"
-                          : "border-primary"
+                              return (
+                                <Tooltip key={group.emoji}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleToggleReaction(
+                                          msg.id,
+                                          group.emoji,
+                                          msg.conversationId
+                                        )
+                                      }}
+                                      className={cn(
+                                        "animate-scale-spring inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-colors",
+                                        isMine
+                                          ? group.hasReacted
+                                            ? "border border-primary-foreground/45 bg-primary-foreground/25 text-primary-foreground hover:bg-primary-foreground/35"
+                                            : "bg-primary-foreground/10 text-primary-foreground/80 hover:bg-primary-foreground/15"
+                                          : group.hasReacted
+                                            ? "border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15"
+                                            : "bg-muted-foreground/10 text-muted-foreground hover:bg-muted-foreground/15"
+                                      )}
+                                    >
+                                      <span>{group.emoji}</span>
+                                      <span className="text-[10px] font-semibold">
+                                        {group.count}
+                                      </span>
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="top"
+                                    className="text-xs"
+                                  >
+                                    {tooltipText}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )
+                            })}
+                          </TooltipProvider>
+                        </div>
                       )}
-                    >
-                      <div>
-                        {msg.linkPreview.siteName && (
-                          <div
-                            className={cn(
-                              "text-[10px] font-bold tracking-wide uppercase",
-                              isMine
-                                ? "text-primary-foreground/90"
-                                : "text-primary"
-                            )}
-                          >
-                            {msg.linkPreview.siteName}
-                          </div>
-                        )}
-                        {msg.linkPreview.title && (
-                          <div
-                            className={cn(
-                              "mt-0.5 line-clamp-2 text-xs leading-tight font-bold",
-                              isMine
-                                ? "text-primary-foreground"
-                                : "text-foreground"
-                            )}
-                          >
-                            {msg.linkPreview.title}
-                          </div>
-                        )}
-                        {msg.linkPreview.description && (
-                          <div
-                            className={cn(
-                              "mt-1 line-clamp-3 text-[11px] leading-normal",
-                              isMine
-                                ? "text-primary-foreground/80"
-                                : "text-muted-foreground"
-                            )}
-                          >
-                            {msg.linkPreview.description}
-                          </div>
-                        )}
-                        {msg.linkPreview.imageUrl && (
-                          <div className="mt-2.5 aspect-video w-full max-w-[360px] overflow-hidden rounded-lg">
-                            <img
-                              src={msg.linkPreview.imageUrl}
-                              alt={msg.linkPreview.title || "Preview"}
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.parentElement?.remove()
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </a>
-                  )}
-
-                  {groupedReactions.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      <TooltipProvider>
-                        {groupedReactions.map((group) => {
-                          const displayedNames = group.userNames.map(
-                            (name, i) =>
-                              group.userIds[i] === currentUserId
-                                ? t("chat.tooltipYou")
-                                : name
-                          )
-                          const tooltipText =
-                            displayedNames.length <= 3
-                              ? `${displayedNames.join(", ")} ${t("chat.tooltipReacted")}`
-                              : `${displayedNames.slice(0, 3).join(", ")} ${t(
-                                  "chat.tooltipAndOthers",
-                                  {
-                                    count: displayedNames.length - 3,
-                                  }
-                                )} ${t("chat.tooltipReacted")}`
-
-                          return (
-                            <Tooltip key={group.emoji}>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleToggleReaction(
-                                      msg.id,
-                                      group.emoji,
-                                      msg.conversationId
-                                    )
-                                  }}
-                                  className={cn(
-                                    "animate-scale-spring inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-colors",
-                                    isMine
-                                      ? group.hasReacted
-                                        ? "border border-primary-foreground/45 bg-primary-foreground/25 text-primary-foreground hover:bg-primary-foreground/35"
-                                        : "bg-primary-foreground/10 text-primary-foreground/80 hover:bg-primary-foreground/15"
-                                      : group.hasReacted
-                                        ? "border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15"
-                                        : "bg-muted-foreground/10 text-muted-foreground hover:bg-muted-foreground/15"
-                                  )}
-                                >
-                                  <span>{group.emoji}</span>
-                                  <span className="text-[10px] font-semibold">
-                                    {group.count}
-                                  </span>
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">
-                                {tooltipText}
-                              </TooltipContent>
-                            </Tooltip>
-                          )
-                        })}
-                      </TooltipProvider>
                     </div>
                   )}
-
-                  <div
-                    className={cn(
-                      "mt-1 flex items-center gap-1 text-[10px]",
-                      isMine
-                        ? "text-primary-foreground/70"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {formatTime(msg.createdAt)}
-                    {isPinned && (
-                      <PinIcon className="size-3 shrink-0 rotate-45 fill-current" />
-                    )}
-                    {isMine &&
-                      (isRead ? (
-                        <CheckCheckIcon className="size-3.5" />
-                      ) : (
-                        <CheckIcon className="size-3.5" />
-                      ))}
-                  </div>
                 </div>
-              )}
-            </div>
-          </HoverCardTrigger>
-        </PopoverAnchor>
-        <HoverCardContent
+              </HoverCardTrigger>
+            </PopoverAnchor>
+            <HoverCardContent
+              side="top"
+              align={isMine ? "end" : "start"}
+              sideOffset={6}
+              collisionPadding={8}
+              collisionBoundary={scrollEl ?? undefined}
+              className="w-auto border-none bg-transparent p-0 shadow-none ring-0 focus:outline-none"
+            >
+              <QuickReactBar
+                msg={msg}
+                currentUserId={currentUserId}
+                onToggleReaction={(emoji) => {
+                  handleToggleReaction(msg.id, emoji, msg.conversationId)
+                  setIsHovered(false)
+                }}
+                onOpenEmojiPicker={() => {
+                  setPickerOpen(true)
+                  setIsHovered(false)
+                }}
+              />
+            </HoverCardContent>
+          </HoverCard>
+
+          <PopoverContent
             side="top"
             align={isMine ? "end" : "start"}
-            sideOffset={6}
+            sideOffset={8}
             collisionPadding={8}
-            collisionBoundary={scrollRef.current ?? undefined}
+            collisionBoundary={scrollEl ?? undefined}
             className="w-auto border-none bg-transparent p-0 shadow-none ring-0 focus:outline-none"
           >
-            <QuickReactBar
-              msg={msg}
-              currentUserId={currentUserId}
-              onToggleReaction={(emoji) => {
+            <EmojiPicker
+              onSelect={(emoji) =>
                 handleToggleReaction(msg.id, emoji, msg.conversationId)
-                setIsHovered(false)
-              }}
-              onOpenEmojiPicker={() => {
-                setPickerOpen(true)
-                setIsHovered(false)
-              }}
+              }
+              onClose={() => setPickerOpen(false)}
             />
-          </HoverCardContent>
-        </HoverCard>
-
-        <PopoverContent
-          side="top"
-          align={isMine ? "end" : "start"}
-          sideOffset={8}
-          collisionPadding={8}
-          collisionBoundary={scrollRef.current ?? undefined}
-          className="w-auto border-none bg-transparent p-0 shadow-none ring-0 focus:outline-none"
-        >
-          <EmojiPicker
-            onSelect={(emoji) =>
-              handleToggleReaction(msg.id, emoji, msg.conversationId)
-            }
-            onClose={() => setPickerOpen(false)}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
+          </PopoverContent>
+        </Popover>
+      </div>
     )
   }
 )
@@ -750,11 +760,7 @@ interface EmojiPickerProps {
   className?: string
 }
 
-function EmojiPicker({
-  onSelect,
-  onClose,
-  className,
-}: EmojiPickerProps) {
+function EmojiPicker({ onSelect, onClose, className }: EmojiPickerProps) {
   const pickerRef = React.useRef<HTMLDivElement>(null)
 
   return (
