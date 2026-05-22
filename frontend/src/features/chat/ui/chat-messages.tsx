@@ -1,4 +1,6 @@
 import * as React from "react"
+import data from "@emoji-mart/data"
+import Picker from "@emoji-mart/react"
 import {
   ArrowDown,
   ArrowRight,
@@ -38,45 +40,6 @@ import {
   getMessagePreview,
   renderMessageContent,
 } from "../lib/chat-utils"
-
-const POPULAR_EMOJIS = [
-  "👍",
-  "❤️",
-  "😂",
-  "😮",
-  "😢",
-  "🔥",
-  "👏",
-  "🎉",
-  "🙏",
-  "✨",
-  "💯",
-  "🥰",
-  "😍",
-  "🤣",
-  "🤔",
-  "🥺",
-  "😭",
-  "😡",
-  "😎",
-  "🥳",
-  "🙄",
-  "🤫",
-  "😴",
-  "🤯",
-  "👀",
-  "🙌",
-  "🎈",
-  "🎂",
-  "🌟",
-  "⚡",
-  "💔",
-  "✔️",
-  "❌",
-  "❓",
-  "🎵",
-  "💬",
-]
 
 interface ChatMessagesProps {
   isLoading: boolean
@@ -757,33 +720,24 @@ function QuickReactBar({
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void
   onClose: () => void
-  className?: string
 }
 
-function EmojiPicker({ onSelect, onClose, className }: EmojiPickerProps) {
-  const pickerRef = React.useRef<HTMLDivElement>(null)
-
+function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   return (
-    <div
-      ref={pickerRef}
-      className={cn(
-        "grid h-[184px] w-[286px] grid-cols-8 gap-0.5 overflow-y-auto rounded-2xl border border-border/40 bg-popover/95 p-2 shadow-xl backdrop-blur-md [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 [&::-webkit-scrollbar-track]:bg-transparent",
-        className
-      )}
-    >
-      {POPULAR_EMOJIS.map((emoji) => (
-        <button
-          key={emoji}
-          type="button"
-          onClick={() => {
-            onSelect(emoji)
+    <div className="overflow-hidden rounded-[28px] border border-border/50 bg-background shadow-2xl ring-1 ring-black/5">
+      <Picker
+        data={data}
+        skinTonePosition="preview"
+        previewPosition="none"
+        perLine={9}
+        maxFrequentRows={1}
+        onEmojiSelect={(emoji: { native?: string }) => {
+          if (typeof emoji?.native === "string") {
+            onSelect(emoji.native)
             onClose()
-          }}
-          className="flex size-8 items-center justify-center rounded-full text-[20px] transition-transform duration-200 ease-out hover:z-10 hover:scale-125 hover:bg-muted/80 active:scale-95"
-        >
-          {emoji}
-        </button>
-      ))}
+          }
+        }}
+      />
     </div>
   )
 }
