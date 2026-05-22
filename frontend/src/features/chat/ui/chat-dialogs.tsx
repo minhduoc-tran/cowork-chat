@@ -19,7 +19,7 @@ interface ChatDialogsProps {
   setPinConfirmOpen: (open: boolean) => void
   unpinConfirmOpen: boolean
   setUnpinConfirmOpen: (open: boolean) => void
-  handlePinConfirm: (notify: boolean) => void
+  handlePinConfirm: () => void
   handleUnpinConfirm: () => void
   setSelectedMessage: (message: ChatMessage | null) => void
 }
@@ -53,14 +53,8 @@ export function ChatDialogs({
             }}>
               {t("profileEdit.cancel")}
             </AlertDialogCancel>
-            <AlertDialogAction
-              variant="outline"
-              onClick={() => handlePinConfirm(false)}
-            >
-              {t("chat.pinSilent")}
-            </AlertDialogAction>
-            <AlertDialogAction onClick={() => handlePinConfirm(true)}>
-              {t("chat.pinNotify")}
+            <AlertDialogAction onClick={handlePinConfirm}>
+              {t("chat.pinAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

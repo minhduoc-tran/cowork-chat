@@ -317,10 +317,10 @@ export function useChat() {
     }
   }
 
-  const handlePinConfirm = async (notify: boolean) => {
+  const handlePinConfirm = async () => {
     if (!activeConversationId || !selectedMessage) return
     try {
-      const res = await conversationApi.pinMessage(activeConversationId, selectedMessage.id, notify)
+      const res = await conversationApi.pinMessage(activeConversationId, selectedMessage.id)
       if (res.data.success && res.data.data) {
         setSocketPins(res.data.data.pins)
         void queryClient.invalidateQueries({

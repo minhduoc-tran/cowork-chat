@@ -114,8 +114,6 @@ async function pinMessage(req: Request, res: Response, next: NextFunction) {
 
     const conversationId = Number(req.params.conversationId);
     const messageId = Number(req.body.messageId);
-    const notify = req.body.notify === true || req.body.notify === "true";
-
     if (!Number.isInteger(conversationId) || conversationId < 1) {
       throw ApiError.badRequest("Invalid conversation ID");
     }
@@ -127,8 +125,7 @@ async function pinMessage(req: Request, res: Response, next: NextFunction) {
     const pins = await conversationService.pinConversationMessage({
       conversationId,
       messageId,
-      userId: req.user.id,
-      notify
+      userId: req.user.id
     });
 
     return ApiResponse.ok(res, "Message pinned successfully", { pins });

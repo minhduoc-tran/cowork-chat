@@ -91,10 +91,10 @@ export const conversationApi = {
       getConversationPinsRoute(conversationId)
     ),
 
-  pinMessage: (conversationId: number, messageId: number, notify = false) =>
+  pinMessage: (conversationId: number, messageId: number) =>
     apiClient.put<ApiResponse<{ pins: ConversationPin[] }>>(
       getConversationPinRoute(conversationId),
-      { messageId, notify }
+      { messageId }
     ),
 
   unpinMessage: (conversationId: number, messageId: number) =>

@@ -481,9 +481,8 @@ async function pinConversationMessage(input: {
   conversationId: number;
   messageId: number;
   userId: number;
-  notify?: boolean;
 }) {
-  const { conversationId, messageId, userId, notify = false } = input;
+  const { conversationId, messageId, userId } = input;
 
   await ensureActiveConversationMember(conversationId, userId);
 
@@ -539,19 +538,6 @@ async function pinConversationMessage(input: {
     pinOrder: nextOrder,
     pinnedAt
   });
-
-  // Optional system message: "[Name] pinned a message"
-  if (notify) {
-    const systemContent = `${pinner.displayName} pinned a message`;
-    await db.insert(messagesTable).values({
-      conversationId,
-      senderId: userId,
-      type: "system",
-      content: systemContent,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-  }
 
   const activeMembers = await db
     .select({ userId: conversationMembersTable.userId })
