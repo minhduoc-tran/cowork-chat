@@ -22,6 +22,7 @@ import { cn } from "@/shared/lib/utils"
 import { AddFriendDialog } from "@/shared/ui/add-friend-dialog"
 import { getConversationPreviewText } from "@/shared/ui/app-sidebar-preview"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
+import { CreateGroupDialog } from "@/shared/ui/create-group-dialog"
 import { NavUser } from "@/shared/ui/nav-user"
 import {
   Sidebar,
@@ -351,6 +352,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
   const currentUserId = useAuthStore((state) => state.user?.id)
   const { t } = useTranslation()
   const [isAddFriendOpen, setIsAddFriendOpen] = React.useState(false)
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = React.useState(false)
 
   return (
     <aside className="hidden h-svh w-[calc(var(--sidebar-width-icon)+1px+20rem)] shrink-0 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex">
@@ -432,6 +434,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
             </button>
             <button
               type="button"
+              onClick={() => setIsCreateGroupOpen(true)}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               aria-label={t("sidebar.createGroup")}
             >
@@ -456,6 +459,10 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
       <AddFriendDialog
         open={isAddFriendOpen}
         onOpenChange={setIsAddFriendOpen}
+      />
+      <CreateGroupDialog
+        open={isCreateGroupOpen}
+        onOpenChange={setIsCreateGroupOpen}
       />
     </aside>
   )

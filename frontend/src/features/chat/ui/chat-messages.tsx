@@ -17,9 +17,10 @@ import {
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
-import type { ConversationPin } from "@/shared/api"
+import type { ConversationListItem, ConversationPin } from "@/shared/api"
 import { useToggleMessageReaction } from "@/shared/api"
 import { cn } from "@/shared/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import {
   HoverCard,
   HoverCardContent,
@@ -33,6 +34,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/shared/ui/tooltip"
+import { UserProfileDialog } from "@/shared/ui/user-profile-dialog"
 
 import type { ChatMessage } from "../lib/chat-utils"
 import {
@@ -60,6 +62,14 @@ interface ChatMessagesProps {
   scrollHintMode: "hidden" | "scroll" | "unread"
   handleScrollToBottom: () => void
   isFetchingNextPage: boolean
+  activeConversation?: ConversationListItem | null
+  onViewProfile?: (user: {
+    userId: number
+    displayName: string
+    avatar: string | null
+    role?: string
+    joinedAt?: string
+  }) => void
 }
 
 export function ChatMessages({
@@ -81,8 +91,16 @@ export function ChatMessages({
   scrollHintMode,
   handleScrollToBottom,
   isFetchingNextPage,
+  activeConversation,
 }: ChatMessagesProps) {
   const { t } = useTranslation()
+  const [selectedUserProfile, setSelectedUserProfile] = React.useState<{
+    userId: number
+    displayName: string
+    avatar: string | null
+    role?: string
+    joinedAt?: string
+  } | null>(null)
 
   const toggleReactionMutation = useToggleMessageReaction()
 
@@ -98,7 +116,8 @@ export function ChatMessages({
   )
 
   return (
-    <ScrollArea className="relative min-h-0 flex-1 px-4" ref={scrollRef}>
+    <>
+      <ScrollArea className="relative min-h-0 flex-1 px-4" ref={scrollRef}>
       <style>{`
         @keyframes context-menu-in {
           from {
@@ -146,13 +165,52 @@ export function ChatMessages({
             {t("chat.noMessages")}
           </div>
         )}
-        {messages.map((msg) => {
-          const isMine = msg.senderId === currentUserId
+        {messages.map((msg, index) => {
+          if (msg.type === "system") {
+            return (
+              <SystemMessageItem
+                key={msg.id}
+                ref={(node) => {
+                  messageRefs.current[msg.id] = node
+                }}
+                msg={msg}
+                t={t}
+                activeConversation={activeConversation}
+                currentUserId={currentUserId}
+              />
+            )
+          }
+
+          const isMine = Number(msg.senderId) === Number(currentUserId)
           const isRead =
             isMine &&
             otherMemberLastReadId !== null &&
             msg.id <= otherMemberLastReadId
           const isPinned = pins.some((p) => p.messageId === msg.id)
+
+          const prevMsg = messages[index - 1]
+          const nextMsg = messages[index + 1]
+
+          const isSameSender = (m1: typeof msg | undefined, m2: typeof msg | undefined) => {
+            if (!m1 || !m2) return false
+            if (m1.type === "system" || m2.type === "system") return false
+            return m1.senderId === m2.senderId
+          }
+
+          const isRecent = (m1: typeof msg | undefined, m2: typeof msg | undefined) => {
+            if (!m1 || !m2) return false
+            const t1 = new Date(m1.createdAt).getTime()
+            const t2 = new Date(m2.createdAt).getTime()
+            return Math.abs(t1 - t2) < 5 * 60 * 1000
+          }
+
+          const isGroupedWithPrev = isSameSender(msg, prevMsg) && isRecent(msg, prevMsg)
+          const isGroupedWithNext = isSameSender(msg, nextMsg) && isRecent(msg, nextMsg)
+
+          const isGroup = activeConversation?.conversation?.type === "group"
+          const showName = !isMine && isGroup && !isGroupedWithPrev
+          const showAvatar = !isMine && isGroup && !isGroupedWithNext
+          const hasAvatarSpace = !isMine && isGroup
 
           return (
             <ChatMessageItem
@@ -176,6 +234,12 @@ export function ChatMessages({
               setUnpinConfirmOpen={setUnpinConfirmOpen}
               setRecallConfirmOpen={setRecallConfirmOpen}
               setDeleteConfirmOpen={setDeleteConfirmOpen}
+              activeConversation={activeConversation}
+              showName={showName}
+              showAvatar={showAvatar}
+              hasAvatarSpace={hasAvatarSpace}
+              isGroupedWithPrev={isGroupedWithPrev}
+              onViewProfile={setSelectedUserProfile}
             />
           )
         })}
@@ -202,6 +266,12 @@ export function ChatMessages({
         </button>
       )}
     </ScrollArea>
+    <UserProfileDialog
+      key={selectedUserProfile?.userId ?? "none"}
+      user={selectedUserProfile}
+      onClose={() => setSelectedUserProfile(null)}
+    />
+    </>
   )
 }
 
@@ -229,7 +299,122 @@ interface ChatMessageItemProps {
   setUnpinConfirmOpen: (open: boolean) => void
   setRecallConfirmOpen: (open: boolean) => void
   setDeleteConfirmOpen: (open: boolean) => void
+  activeConversation?: ConversationListItem | null
+  showName?: boolean
+  showAvatar?: boolean
+  hasAvatarSpace?: boolean
+  isGroupedWithPrev?: boolean
+  onViewProfile?: (user: {
+    userId: number
+    displayName: string
+    avatar: string | null
+    role?: string
+    joinedAt?: string
+  }) => void
 }
+
+interface SystemMessageItemProps {
+  msg: ChatMessage
+  t: (key: string, options?: Record<string, unknown>) => string
+  activeConversation?: ConversationListItem | null
+  currentUserId: number
+}
+
+const SystemMessageItem = React.forwardRef<HTMLDivElement, SystemMessageItemProps>(
+  ({ msg, t, activeConversation, currentUserId }, ref) => {
+    const text = React.useMemo(() => {
+      if (!msg.content) return ""
+      try {
+        const payload = JSON.parse(msg.content)
+        const eventType = payload.eventType
+
+        const getActorName = (actorId: number, defaultName?: string) => {
+          if (Number(actorId) === Number(currentUserId)) {
+            return t("chat.tooltipYou")
+          }
+          if (activeConversation?.members) {
+            const member = activeConversation.members.find(
+              (m) => m.userId === actorId
+            )
+            if (member) return member.displayName
+          }
+          return defaultName || `User #${actorId}`
+        }
+
+        if (eventType === "group_created") {
+          const actorName = getActorName(payload.actorId, payload.actorName)
+          return (
+            t("chat.systemGroupCreated", {
+              actor: actorName,
+              groupName: payload.groupName,
+            }) || `${actorName} đã tạo nhóm "${payload.groupName}"`
+          )
+        }
+
+        if (eventType === "group_renamed") {
+          const actorName = getActorName(payload.actorId, payload.actorName)
+          return (
+            t("chat.systemGroupRenamed", {
+              actor: actorName,
+              newName: payload.newName,
+            }) || `${actorName} đã đổi tên nhóm thành "${payload.newName}"`
+          )
+        }
+
+        if (eventType === "member_joined") {
+          const actorName = getActorName(payload.actorId, payload.actorName)
+          const targetName = getActorName(payload.targetId, payload.targetName)
+          if (Number(payload.actorId) === Number(payload.targetId)) {
+            return (
+              t("chat.systemMemberJoinedSelf", {
+                actor: actorName,
+              }) || `${actorName} đã tham gia nhóm`
+            )
+          } else {
+            return (
+              t("chat.systemMemberJoined", {
+                actor: actorName,
+                target: targetName,
+              }) || `${actorName} đã thêm ${targetName} vào nhóm`
+            )
+          }
+        }
+
+        if (eventType === "member_kicked") {
+          const actorName = getActorName(payload.actorId, payload.actorName)
+          const targetName = getActorName(payload.targetId, payload.targetName)
+          return (
+            t("chat.systemMemberKicked", {
+              actor: actorName,
+              target: targetName,
+            }) || `${actorName} đã xóa ${targetName} khỏi nhóm`
+          )
+        }
+
+        if (eventType === "member_left") {
+          const actorName = getActorName(payload.actorId, payload.displayName)
+          return (
+            t("chat.systemMemberLeft", {
+              actor: actorName,
+            }) || `${actorName} đã rời khỏi nhóm`
+          )
+        }
+      } catch (e) {
+        console.error("Failed to parse system message content:", e)
+      }
+      return msg.content
+    }, [msg.content, activeConversation, currentUserId, t])
+
+    return (
+      <div ref={ref} className="flex w-full justify-center py-2 select-none">
+        <span className="rounded-full bg-muted/65 px-4 py-1.5 text-center text-[11px] font-medium text-muted-foreground shadow-xs">
+          {text}
+        </span>
+      </div>
+    )
+  }
+)
+SystemMessageItem.displayName = "SystemMessageItem"
 
 const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
   (
@@ -250,6 +435,12 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
       setUnpinConfirmOpen,
       setRecallConfirmOpen,
       setDeleteConfirmOpen,
+      activeConversation,
+      showName = false,
+      showAvatar = false,
+      hasAvatarSpace = false,
+      isGroupedWithPrev = false,
+      onViewProfile,
     },
     ref
   ) => {
@@ -260,6 +451,12 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
       y: number
     } | null>(null)
     const [scrollEl, setScrollEl] = React.useState<HTMLDivElement | null>(null)
+
+    const isGroup = activeConversation?.conversation?.type === "group"
+    const senderMember = React.useMemo(() => {
+      if (!isGroup || !activeConversation?.members) return null
+      return activeConversation.members.find((m) => m.userId === msg.senderId)
+    }, [isGroup, activeConversation, msg.senderId])
 
     React.useEffect(() => {
       setScrollEl(scrollRef.current)
@@ -344,10 +541,27 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
       <div
         ref={ref}
         className={cn(
-          "flex w-full scroll-mt-24 rounded-3xl",
-          isMine ? "justify-end" : "justify-start"
+          "flex w-full items-end gap-2 scroll-mt-24 rounded-3xl",
+          isMine ? "justify-end" : "justify-start",
+          isGroupedWithPrev ? "mt-0.5" : "mt-3.5"
         )}
       >
+        {hasAvatarSpace && (
+          showAvatar ? (
+            <Avatar className="h-8 w-8 shrink-0 rounded-full mb-1">
+              <AvatarImage
+                src={senderMember?.avatar ?? undefined}
+                alt={senderMember?.displayName}
+              />
+              <AvatarFallback className="rounded-full text-xs bg-primary/10 text-primary">
+                {senderMember?.displayName?.slice(0, 2).toUpperCase() ?? "?"}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            <div className="w-8 shrink-0" />
+          )
+        )}
+
         {contextMenu && (
           <CustomContextMenu
             x={contextMenu.x}
@@ -400,6 +614,23 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
                   onTouchEnd={handleTouchEnd}
                   onTouchMove={handleTouchMove}
                 >
+                  {showName && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onViewProfile?.({
+                          userId: msg.senderId,
+                          displayName: senderMember?.displayName ?? `User #${msg.senderId}`,
+                          avatar: senderMember?.avatar ?? null,
+                          role: senderMember?.role,
+                          joinedAt: senderMember?.joinedAt,
+                        })
+                      }
+                      className="ml-1 text-[11px] font-semibold text-primary/80 mb-0.5 select-none text-left hover:underline outline-none cursor-pointer"
+                    >
+                      {senderMember?.displayName ?? `User #${msg.senderId}`}
+                    </button>
+                  )}
                   {msg.isDeleted ? (
                     <div
                       className={cn(
@@ -642,8 +873,7 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
             side="top"
             align={isMine ? "end" : "start"}
             sideOffset={8}
-            collisionPadding={8}
-            collisionBoundary={scrollEl ?? undefined}
+            collisionPadding={16}
             className="w-auto border-none bg-transparent p-0 shadow-none ring-0 focus:outline-none"
           >
             <EmojiPicker

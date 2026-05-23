@@ -260,6 +260,62 @@ async function toggleMessageReaction(
   }
 }
 
+async function leaveGroup(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+    if (!Number.isInteger(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    await conversationService.leaveGroupConversation(
+      conversationId,
+      req.user.id
+    );
+
+    return ApiResponse.ok(res, "Left group successfully", null);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateGroup(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+    if (!Number.isInteger(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    const name = typeof req.body.name === "string" ? req.body.name : undefined;
+    const rawMemberIds = Array.isArray(req.body.memberIds)
+      ? req.body.memberIds
+      : undefined;
+
+    const memberIds = rawMemberIds
+      ? rawMemberIds
+          .map((id: unknown) => Number(id))
+          .filter((id: number) => !isNaN(id))
+      : undefined;
+
+    const result = await conversationService.updateGroupConversation(
+      conversationId,
+      req.user.id,
+      { name, memberIds }
+    );
+
+    return ApiResponse.ok(res, "Group updated successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export const conversationController = {
   createGroup,
   listConversations,
@@ -269,5 +325,7 @@ export const conversationController = {
   unpinMessage,
   recallMessage,
   deleteMessage,
-  toggleMessageReaction
+  toggleMessageReaction,
+  leaveGroup,
+  updateGroup
 };

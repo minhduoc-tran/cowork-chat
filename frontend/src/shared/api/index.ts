@@ -23,8 +23,11 @@ export { conversationApi } from "./features/conversation/api"
 export {
   useConversationMessages,
   useConversations,
+  useCreateGroup,
   useDirectConversation,
+  useLeaveGroup,
   useToggleMessageReaction,
+  useUpdateGroup,
 } from "./features/conversation/hooks"
 export type {
   Conversation,

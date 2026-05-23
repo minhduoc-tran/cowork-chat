@@ -294,17 +294,6 @@ export async function registerSocketConnectionHandlers(socket: Socket) {
       socket.data.userId
     );
 
-    const activeConversationId = presenceState.getEffectiveActiveConversation(
-      socket.data.userId
-    );
-
-    if (activeConversationId !== payload.conversationId) {
-      socket.emit("error", {
-        message: "Typing is only allowed in the active conversation"
-      });
-      return;
-    }
-
     presenceState.startTyping({
       conversationId: payload.conversationId,
       userId: socket.data.userId,

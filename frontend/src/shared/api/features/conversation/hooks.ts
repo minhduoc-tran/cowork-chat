@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { conversationApi } from "./api"
 
@@ -60,3 +60,50 @@ export function useToggleMessageReaction() {
         .then((res) => res.data.data),
   })
 }
+
+export function useCreateGroup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, memberIds }: { name: string; memberIds: number[] }) =>
+      conversationApi.createGroup(name, memberIds).then((res) => res.data.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    },
+  })
+}
+
+export function useLeaveGroup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (conversationId: number) =>
+      conversationApi.leaveGroup(conversationId).then((res) => res.data.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    },
+  })
+}
+
+export function useUpdateGroup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      name,
+      memberIds,
+    }: {
+      conversationId: number
+      name?: string
+      memberIds?: number[]
+    }) =>
+      conversationApi
+        .updateGroup(conversationId, { name, memberIds })
+        .then((res) => res.data.data),
+    onSuccess: (data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
+      void queryClient.invalidateQueries({
+        queryKey: ["conversations", variables.conversationId, "messages"],
+      })
+    },
+  })
+}
+

@@ -1,3 +1,4 @@
+import { MoreVertical, PanelRight, Phone, Search, Video } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/shared/lib/utils"
@@ -5,18 +6,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 
 interface ChatHeaderProps {
   friend?: {
+    id: number
     avatar?: string | null
     displayName?: string
     isOnline?: boolean
-  }
+    isGroup?: boolean
+    memberCount?: number
+  } | null
   targetUserId: number | null
   isOtherUserTyping: boolean
+  sidebarOpen: boolean
+  onToggleSidebar: () => void
 }
 
 export function ChatHeader({
   friend,
   targetUserId,
   isOtherUserTyping,
+  sidebarOpen,
+  onToggleSidebar,
 }: ChatHeaderProps) {
   const { t } = useTranslation()
 
@@ -43,10 +51,54 @@ export function ChatHeader({
         >
           {isOtherUserTyping
             ? t("chat.typing", { name: friend?.displayName })
-            : friend?.isOnline
-              ? t("chat.online")
-              : t("chat.offline")}
+            : friend?.isGroup
+              ? t("chat.memberCount", { count: friend?.memberCount })
+              : friend?.isOnline
+                ? t("chat.online")
+                : t("chat.offline")}
         </div>
+      </div>
+
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all text-muted-foreground hover:text-foreground cursor-pointer outline-none"
+        >
+          <Search className="size-4.5" />
+        </button>
+        {friend?.isGroup ? (
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all text-muted-foreground hover:text-foreground cursor-pointer outline-none"
+          >
+            <Video className="size-4.5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all text-muted-foreground hover:text-foreground cursor-pointer outline-none"
+          >
+            <Phone className="size-4.5" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all cursor-pointer outline-none",
+            sidebarOpen
+              ? "text-primary bg-primary/10 hover:bg-primary/15"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <PanelRight className="size-4.5" />
+        </button>
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all text-muted-foreground hover:text-foreground cursor-pointer outline-none"
+        >
+          <MoreVertical className="size-4.5" />
+        </button>
       </div>
     </header>
   )

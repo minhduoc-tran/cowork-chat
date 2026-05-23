@@ -272,6 +272,16 @@ async function listUserConversations(userId: number) {
     };
   });
 
+  conversations.sort((a, b) => {
+    const timeA = a.lastMessage
+      ? a.lastMessage.createdAt.getTime()
+      : a.conversation.updatedAt.getTime();
+    const timeB = b.lastMessage
+      ? b.lastMessage.createdAt.getTime()
+      : b.conversation.updatedAt.getTime();
+    return timeB - timeA;
+  });
+
   return { conversations };
 }
 
@@ -607,6 +617,327 @@ async function unpinConversationMessage(input: {
   return pins;
 }
 
+async function leaveGroupConversation(conversationId: number, userId: number) {
+  const conversation = await db.query.conversationsTable.findFirst({
+    where: eq(conversationsTable.id, conversationId)
+  });
+
+  if (!conversation) {
+    throw ApiError.notFound("Conversation not found");
+  }
+
+  if (conversation.type !== "group") {
+    throw ApiError.badRequest("Cannot leave a direct conversation");
+  }
+
+  const member = await db.query.conversationMembersTable.findFirst({
+    where: and(
+      eq(conversationMembersTable.conversationId, conversationId),
+      eq(conversationMembersTable.userId, userId),
+      isNull(conversationMembersTable.leftAt)
+    )
+  });
+
+  if (!member) {
+    throw ApiError.forbidden("You are not an active member of this group");
+  }
+
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.id, userId)
+  });
+  const displayName = user?.displayName || `User #${userId}`;
+
+  const createdAt = new Date();
+
+  const result = await db.transaction(async tx => {
+    await tx
+      .update(conversationMembersTable)
+      .set({ leftAt: createdAt })
+      .where(
+        and(
+          eq(conversationMembersTable.conversationId, conversationId),
+          eq(conversationMembersTable.userId, userId)
+        )
+      );
+
+    if (member.role === "owner") {
+      const activeMembers = await tx.query.conversationMembersTable.findMany({
+        where: and(
+          eq(conversationMembersTable.conversationId, conversationId),
+          isNull(conversationMembersTable.leftAt)
+        ),
+        orderBy: asc(conversationMembersTable.joinedAt)
+      });
+
+      if (activeMembers.length > 0) {
+        await tx
+          .update(conversationMembersTable)
+          .set({ role: "owner" })
+          .where(eq(conversationMembersTable.id, activeMembers[0].id));
+      }
+    }
+
+    const [systemMessage] = await tx
+      .insert(messagesTable)
+      .values({
+        conversationId,
+        senderId: userId,
+        type: "system",
+        content: JSON.stringify({
+          eventType: "member_left",
+          actorId: userId,
+          conversationId,
+          displayName
+        }),
+        createdAt,
+        updatedAt: createdAt
+      })
+      .returning();
+
+    return { systemMessage };
+  });
+
+  const activeMembers = await db
+    .select({ userId: conversationMembersTable.userId })
+    .from(conversationMembersTable)
+    .where(
+      and(
+        eq(conversationMembersTable.conversationId, conversationId),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+
+  const memberIds = activeMembers.map(m => m.userId);
+
+  socketEmitter.emitConversationMessage(
+    conversationId,
+    [userId, ...memberIds],
+    userId,
+    {
+      conversation,
+      members: [userId, ...memberIds].map(id => ({
+        userId: id,
+        displayName: "",
+        email: "",
+        avatar: null,
+        isFriend: false
+      })),
+      message: {
+        ...result.systemMessage,
+        reactions: []
+      },
+      replyTo: null
+    }
+  );
+
+  return { success: true };
+}
+
+async function updateGroupConversation(
+  conversationId: number,
+  userId: number,
+  input: { name?: string; memberIds?: number[] }
+) {
+  const groupName = input.name?.trim();
+
+  const conversation = await db.query.conversationsTable.findFirst({
+    where: eq(conversationsTable.id, conversationId)
+  });
+
+  if (!conversation) {
+    throw ApiError.notFound("Group conversation not found");
+  }
+
+  if (conversation.type !== "group") {
+    throw ApiError.badRequest("Cannot edit a direct conversation");
+  }
+
+  const currentMember = await db.query.conversationMembersTable.findFirst({
+    where: and(
+      eq(conversationMembersTable.conversationId, conversationId),
+      eq(conversationMembersTable.userId, userId),
+      isNull(conversationMembersTable.leftAt)
+    )
+  });
+
+  if (
+    !currentMember ||
+    (currentMember.role !== "owner" && currentMember.role !== "admin")
+  ) {
+    throw ApiError.forbidden("Only group owner or admin can edit the group");
+  }
+
+  const currentUser = await db.query.usersTable.findFirst({
+    where: eq(usersTable.id, userId)
+  });
+  const actorName = currentUser?.displayName || `User #${userId}`;
+
+  const createdAt = new Date();
+
+  const result = await db.transaction(async tx => {
+    let updatedConversation = conversation;
+    let oldName = conversation.name;
+    const systemMessagesToInsert: Array<typeof messagesTable.$inferInsert> = [];
+
+    if (groupName && groupName !== conversation.name) {
+      const [updated] = await tx
+        .update(conversationsTable)
+        .set({ name: groupName, updatedAt: createdAt })
+        .where(eq(conversationsTable.id, conversationId))
+        .returning();
+      updatedConversation = updated;
+
+      systemMessagesToInsert.push({
+        conversationId,
+        senderId: userId,
+        type: "system" as const,
+        content: JSON.stringify({
+          eventType: "group_renamed",
+          actorId: userId,
+          conversationId,
+          oldName,
+          newName: groupName,
+          actorName
+        }),
+        createdAt,
+        updatedAt: createdAt
+      });
+    }
+
+    if (input.memberIds) {
+      const existingMembers = await tx.query.conversationMembersTable.findMany({
+        where: eq(conversationMembersTable.conversationId, conversationId)
+      });
+
+      const currentActiveIds = existingMembers
+        .filter(m => m.leftAt === null)
+        .map(m => m.userId);
+
+      const targetMemberIds = [...new Set(input.memberIds)].filter(
+        id => id !== userId
+      );
+
+      const toAdd = targetMemberIds.filter(
+        id => !currentActiveIds.includes(id)
+      );
+      const toRemove = currentActiveIds.filter(
+        id => id !== userId && !targetMemberIds.includes(id)
+      );
+
+      for (const addId of toAdd) {
+        const existed = existingMembers.find(m => m.userId === addId);
+        if (existed) {
+          await tx
+            .update(conversationMembersTable)
+            .set({ leftAt: null, role: "member" })
+            .where(eq(conversationMembersTable.id, existed.id));
+        } else {
+          await tx.insert(conversationMembersTable).values({
+            conversationId,
+            userId: addId,
+            role: "member"
+          });
+        }
+
+        const addedUser = await tx.query.usersTable.findFirst({
+          where: eq(usersTable.id, addId)
+        });
+        const addedName = addedUser?.displayName || `User #${addId}`;
+
+        systemMessagesToInsert.push({
+          conversationId,
+          senderId: userId,
+          type: "system" as const,
+          content: JSON.stringify({
+            eventType: "member_joined",
+            actorId: userId,
+            conversationId,
+            targetId: addId,
+            actorName,
+            targetName: addedName
+          }),
+          createdAt,
+          updatedAt: createdAt
+        });
+      }
+
+      for (const removeId of toRemove) {
+        await tx
+          .update(conversationMembersTable)
+          .set({ leftAt: createdAt })
+          .where(
+            and(
+              eq(conversationMembersTable.conversationId, conversationId),
+              eq(conversationMembersTable.userId, removeId)
+            )
+          );
+
+        const removedUser = await tx.query.usersTable.findFirst({
+          where: eq(usersTable.id, removeId)
+        });
+        const removedName = removedUser?.displayName || `User #${removeId}`;
+
+        systemMessagesToInsert.push({
+          conversationId,
+          senderId: userId,
+          type: "system" as const,
+          content: JSON.stringify({
+            eventType: "member_kicked",
+            actorId: userId,
+            conversationId,
+            targetId: removeId,
+            actorName,
+            targetName: removedName
+          }),
+          createdAt,
+          updatedAt: createdAt
+        });
+      }
+    }
+
+    const insertedMessages = [];
+    for (const msg of systemMessagesToInsert) {
+      const [inserted] = await tx.insert(messagesTable).values(msg).returning();
+      insertedMessages.push(inserted);
+    }
+
+    return { updatedConversation, insertedMessages };
+  });
+
+  const activeMembers = await db
+    .select({ userId: conversationMembersTable.userId })
+    .from(conversationMembersTable)
+    .where(
+      and(
+        eq(conversationMembersTable.conversationId, conversationId),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+
+  const memberIds = activeMembers.map(m => m.userId);
+
+  const user = currentUser;
+  for (const systemMsg of result.insertedMessages) {
+    socketEmitter.emitConversationMessage(conversationId, memberIds, userId, {
+      conversation: result.updatedConversation,
+      members: memberIds.map(id => ({
+        userId: id,
+        displayName: "",
+        email: "",
+        avatar: null,
+        isFriend: false
+      })),
+      message: {
+        ...systemMsg,
+        reactions: []
+      },
+      replyTo: null
+    });
+  }
+
+  return { success: true, conversation: result.updatedConversation };
+}
+
 export const conversationService = {
   createGroupConversation,
   findDirectConversationBetweenUsers,
@@ -617,5 +948,7 @@ export const conversationService = {
   markConversationAsRead,
   getConversationPins,
   pinConversationMessage,
-  unpinConversationMessage
+  unpinConversationMessage,
+  leaveGroupConversation,
+  updateGroupConversation
 };

@@ -1,15 +1,19 @@
 import * as React from "react"
+import data from "@emoji-mart/data"
+import Picker from "@emoji-mart/react"
 import { ReplyIcon, SendIcon, SmileIcon, XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/shared/lib/utils"
 import { Button } from "@/shared/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover"
 
 import type { ChatMessage } from "../lib/chat-utils"
 import { getMessagePreview } from "../lib/chat-utils"
 
 interface ChatInputPanelProps {
   input: string
+  setInput: React.Dispatch<React.SetStateAction<string>>
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   handleKeyDown: (e: React.KeyboardEvent) => void
   handleSend: () => void
@@ -25,6 +29,7 @@ interface ChatInputPanelProps {
 
 export function ChatInputPanel({
   input,
+  setInput,
   handleInputChange,
   handleKeyDown,
   handleSend,
@@ -36,6 +41,7 @@ export function ChatInputPanel({
   getSenderName,
 }: ChatInputPanelProps) {
   const { t } = useTranslation()
+  const [pickerOpen, setPickerOpen] = React.useState(false)
 
   return (
     <div className={cn("shrink-0", !isOtherUserTyping && "border-t")}>
@@ -92,13 +98,38 @@ export function ChatInputPanel({
           placeholder={t("chat.inputPlaceholder")}
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
-        <button
-          type="button"
-          className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-          aria-label="Emoji"
-        >
-          <SmileIcon className="size-5" />
-        </button>
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:text-foreground cursor-pointer outline-none active:scale-95 transition-all"
+              aria-label="Emoji"
+            >
+              <SmileIcon className="size-5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            side="top"
+            align="end"
+            sideOffset={8}
+            className="w-auto border-none bg-transparent p-0 shadow-none ring-0 focus:outline-none"
+          >
+            <div className="overflow-hidden rounded-[28px] border border-border/50 bg-background shadow-2xl ring-1 ring-black/5">
+              <Picker
+                data={data}
+                skinTonePosition="preview"
+                previewPosition="none"
+                perLine={9}
+                maxFrequentRows={1}
+                onEmojiSelect={(emoji: { native?: string }) => {
+                  if (typeof emoji?.native === "string") {
+                    setInput((prev) => prev + emoji.native)
+                  }
+                }}
+              />
+            </div>
+          </PopoverContent>
+        </Popover>
         <Button
           size="icon"
           variant="ghost"

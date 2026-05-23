@@ -13,6 +13,7 @@ import type {
 import {
   conversationApi,
   useConversationMessages,
+  useConversations,
   useDirectConversation,
   useFriends,
 } from "@/shared/api"
@@ -60,13 +61,34 @@ export function useChat() {
   const isTypingRef = React.useRef(false)
   const typingTimeoutRef = React.useRef<number | null>(null)
 
+  const { data: conversationsData, isLoading: isLoadingConversations } = useConversations()
+  const conversations = conversationsData?.conversations ?? []
+
   const targetUserId = userId ? Number(userId) : null
+
+  // Check if targetUserId is a group conversation ID (only after conversations list is loaded)
+  const groupConversation = isLoadingConversations
+    ? null
+    : conversations.find(
+        (c) => c.conversation.id === targetUserId && c.conversation.type === "group"
+      )
+
   const localConversationId =
     targetUserId !== null ? (conversationIdsByUser[targetUserId] ?? null) : null
+
+  // Only fetch direct conversation if conversations list is loaded and this is NOT a group
+  const shouldFetchDirect = targetUserId !== null && !isLoadingConversations && !groupConversation
+
   const { data: directConversation, isLoading: isConversationLoading } =
-    useDirectConversation(targetUserId)
-  const activeConversationId =
-    localConversationId ?? directConversation?.conversation.id ?? null
+    useDirectConversation(shouldFetchDirect ? targetUserId : null)
+
+  const activeConversationId = groupConversation
+    ? groupConversation.conversation.id
+    : (localConversationId ?? directConversation?.conversation.id ?? null)
+
+  const activeConversation = conversations.find(
+    (c) => c.conversation.id === activeConversationId
+  ) ?? null
 
   const {
     data: fetchedMessagesData,
@@ -90,7 +112,7 @@ export function useChat() {
       : (fetchedMessagesData?.pages[0]?.pins ?? [])
   const currentPin = pins[activePinIndex] ?? null
 
-  const isLoading = isConversationLoading || isMessagesLoading
+  const isLoading = isLoadingConversations || isConversationLoading || isMessagesLoading
   const mergedMessages = React.useMemo(
     () =>
       mergeMessages(
@@ -99,9 +121,16 @@ export function useChat() {
       ),
     [extraMessagesByUser, fetchedMessages, targetUserId]
   )
-  const friend = friendsData?.friends.find(
-    (f) => f.friend.id === targetUserId
-  )?.friend
+  const friend = groupConversation
+    ? {
+        id: groupConversation.conversation.id,
+        displayName: groupConversation.conversation.name || t("chat.unnamedGroup"),
+        avatar: null,
+        isOnline: false,
+        isGroup: true,
+        memberCount: groupConversation.members.length,
+      }
+    : friendsData?.friends.find((f) => f.friend.id === targetUserId)?.friend
   const replyDraft =
     replyDraftState.userId === targetUserId ? replyDraftState.message : null
 
@@ -481,5 +510,6 @@ export function useChat() {
     otherMemberLastReadId,
     getSenderName,
     isFetchingNextPage,
+    activeConversation,
   }
 }

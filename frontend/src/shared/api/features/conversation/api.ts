@@ -3,8 +3,10 @@ import { apiClient } from "../../client"
 import { CONVERSATION_ROUTES } from "../../routes"
 
 import type {
+  Conversation,
   ConversationListItem,
   ConversationListResponse,
+  ConversationMember,
   ConversationMessage,
   ConversationMessageListResponse,
   ConversationMessageRecord,
@@ -156,4 +158,26 @@ export const conversationApi = {
       getConversationToggleReactionRoute(conversationId, messageId),
       { emoji }
     ),
+
+  createGroup: (name: string, memberIds: number[]) =>
+    apiClient.post<
+      ApiResponse<{
+        conversation: Conversation
+        members: ConversationMember[]
+        systemMessage: ConversationMessage
+      }>
+    >(CONVERSATION_ROUTES.CREATE_GROUP, { name, memberIds }),
+
+  leaveGroup: (conversationId: number) =>
+    apiClient.post<ApiResponse<null>>(`/api/v1/conversations/${conversationId}/leave`),
+
+  updateGroup: (
+    conversationId: number,
+    data: { name?: string; memberIds?: number[] }
+  ) =>
+    apiClient.put<ApiResponse<{ conversation: Conversation }>>(
+      `/api/v1/conversations/${conversationId}/group`,
+      data
+    ),
 }
+
