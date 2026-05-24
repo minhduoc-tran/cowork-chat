@@ -51,6 +51,11 @@ export interface ConversationMessage {
   reactions?: MessageReaction[]
   createdAt: string
   updatedAt: string
+  sender?: {
+    id: number
+    displayName: string
+    avatar: string | null
+  } | null
 }
 
 export interface ConversationMessageReplyPreview {

@@ -169,7 +169,9 @@ export const conversationApi = {
     >(CONVERSATION_ROUTES.CREATE_GROUP, { name, memberIds }),
 
   leaveGroup: (conversationId: number) =>
-    apiClient.post<ApiResponse<null>>(`/api/v1/conversations/${conversationId}/leave`),
+    apiClient.post<ApiResponse<null>>(
+      `/api/v1/conversations/${conversationId}/leave`
+    ),
 
   updateGroup: (
     conversationId: number,
@@ -179,5 +181,9 @@ export const conversationApi = {
       `/api/v1/conversations/${conversationId}/group`,
       data
     ),
-}
 
+  disbandGroup: (conversationId: number) =>
+    apiClient.delete<ApiResponse<null>>(
+      `/api/v1/conversations/${conversationId}`
+    ),
+}

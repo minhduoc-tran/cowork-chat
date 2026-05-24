@@ -27,7 +27,9 @@ export function EditGroupDialog({
   activeConversation,
 }: EditGroupDialogProps) {
   const { t } = useTranslation()
-  const [groupName, setGroupName] = React.useState(() => activeConversation?.conversation.name ?? "")
+  const [groupName, setGroupName] = React.useState(
+    () => activeConversation?.conversation.name ?? ""
+  )
 
   const updateGroupMutation = useUpdateGroup()
 
@@ -60,7 +62,8 @@ export function EditGroupDialog({
       console.error(err)
       const errorMsg =
         err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          ? (err as { response?: { data?: { message?: string } } }).response
+              ?.data?.message
           : null
       toast.error(errorMsg || t("editGroup.error"))
     }
@@ -82,7 +85,10 @@ export function EditGroupDialog({
         <div className="flex flex-col gap-4">
           {/* Group Name input */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-group-name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <label
+              htmlFor="edit-group-name"
+              className="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+            >
               {t("editGroup.groupName")}
             </label>
             <input
@@ -91,7 +97,7 @@ export function EditGroupDialog({
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder={t("editGroup.groupNamePlaceholder")}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-all duration-200 outline-none focus:border-ring focus:ring-2 focus:ring-ring"
               disabled={updateGroupMutation.isPending}
               autoFocus
             />

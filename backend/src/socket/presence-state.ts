@@ -65,18 +65,23 @@ export class PresenceState {
   setActiveConversation(
     socketId: string,
     conversationId: number | null,
+    userId: number,
     updatedAt = Date.now()
   ) {
-    const current = this.socketActiveConversation.get(socketId);
+    let current = this.socketActiveConversation.get(socketId);
 
     if (!current) {
-      throw new Error(`Unknown socket: ${socketId}`);
+      // Automatically register the socket if it was missed due to race conditions
+      this.addSocket(userId, socketId);
+      current = this.socketActiveConversation.get(socketId);
     }
+
+    const previousConversationId = current ? current.conversationId : null;
 
     this.socketActiveConversation.set(socketId, { conversationId, updatedAt });
 
     return {
-      previousConversationId: current.conversationId,
+      previousConversationId,
       nextConversationId: conversationId
     };
   }

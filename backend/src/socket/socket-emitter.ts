@@ -130,5 +130,17 @@ export const socketEmitter = {
     userIds.forEach(userId => {
       io.to(`user:${userId}`).emit("pin:updated", payload);
     });
+  },
+
+  emitConversationDeleted(conversationId: number, userIds: number[]) {
+    const io = getSocketServer();
+    io.to(`conversation:${conversationId}`).emit("conversation.deleted", {
+      conversationId
+    });
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("conversation.deleted", {
+        conversationId
+      });
+    });
   }
 };

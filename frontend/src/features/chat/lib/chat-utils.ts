@@ -22,9 +22,73 @@ export function formatTime(dateValue: string | Date | unknown): string {
  * Split message text into plain-text and URL segments,
  * rendering URLs as clickable <a> tags with an underline hover effect.
  */
+export function parseMentions(
+  text: string,
+  isMine: boolean,
+  members?: { displayName: string }[],
+  currentDisplayName?: string
+): React.ReactNode[] {
+  if (!text) return []
+  if (!members || members.length === 0) return [text]
+
+  const escapedNames = members
+    .map((m) => m.displayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .filter(Boolean)
+
+  if (escapedNames.length === 0) return [text]
+
+  const mentionRegex = new RegExp(`@(${escapedNames.join("|")})`, "g")
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  let key = 0
+
+  while ((match = mentionRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    const matchedName = match[1]
+    const isCurrentUserMentioned =
+      currentDisplayName &&
+      matchedName.toLowerCase() === currentDisplayName.toLowerCase()
+
+    parts.push(
+      React.createElement(
+        "span",
+        {
+          key: `mention-${key++}`,
+          className: cn(
+            "mx-0.5 inline-block rounded-md px-1 py-0.5 text-xs font-semibold select-none",
+            isCurrentUserMentioned
+              ? "border border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300"
+              : isMine
+                ? "bg-primary-foreground/20 text-primary-foreground"
+                : "bg-primary/10 text-primary"
+          ),
+        },
+        `@${matchedName}`
+      )
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts
+}
+
+/**
+ * Split message text into plain-text and URL segments,
+ * rendering URLs as clickable <a> tags with an underline hover effect.
+ * Also parses and highlights member @mentions.
+ */
 export function renderMessageContent(
   content: string | null,
-  isMine: boolean
+  isMine: boolean,
+  members?: { displayName: string }[],
+  currentDisplayName?: string
 ): React.ReactNode {
   if (!content) return null
   const urlRegex = /https?:\/\/[^\s]+/gi
@@ -34,14 +98,17 @@ export function renderMessageContent(
   let key = 0
   while ((match = urlRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(content.slice(lastIndex, match.index))
+      const textSegment = content.slice(lastIndex, match.index)
+      parts.push(
+        ...parseMentions(textSegment, isMine, members, currentDisplayName)
+      )
     }
     const url = match[0]
     parts.push(
       React.createElement(
         "a",
         {
-          key: key++,
+          key: `url-${key++}`,
           href: url,
           target: "_blank",
           rel: "noopener noreferrer",
@@ -57,7 +124,10 @@ export function renderMessageContent(
     lastIndex = match.index + url.length
   }
   if (lastIndex < content.length) {
-    parts.push(content.slice(lastIndex))
+    const trailingSegment = content.slice(lastIndex)
+    parts.push(
+      ...parseMentions(trailingSegment, isMine, members, currentDisplayName)
+    )
   }
   return parts
 }

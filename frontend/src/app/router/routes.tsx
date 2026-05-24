@@ -71,6 +71,16 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: "/chat/group/:conversationId",
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <ChatView />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: "/login",
     element: (
       <PublicRoute>

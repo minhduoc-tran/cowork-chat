@@ -236,7 +236,8 @@ export async function registerSocketConnectionHandlers(socket: Socket) {
 
     const previous = presenceState.setActiveConversation(
       socket.id,
-      payload.conversationId
+      payload.conversationId,
+      socket.data.userId
     );
 
     // Mark messages as read when entering a conversation

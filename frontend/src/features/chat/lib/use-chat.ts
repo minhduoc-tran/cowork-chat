@@ -28,7 +28,7 @@ import { useChatSocket } from "./use-chat-socket"
 
 export function useChat() {
   const { t } = useTranslation()
-  const { userId } = useParams<{ userId: string }>()
+  const { userId, conversationId } = useParams<{ userId?: string; conversationId?: string }>()
   const currentUser = useAuthStore((state) => state.user)
   const { data: friendsData } = useFriends()
   const queryClient = useQueryClient()
@@ -55,29 +55,44 @@ export function useChat() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false)
   const [selectedMessage, setSelectedMessage] =
     React.useState<ChatMessage | null>(null)
-  const [isOtherUserTyping, setIsOtherUserTyping] = React.useState(false)
+  const [isOtherUserTyping, setIsOtherUserTyping] = React.useState<
+    boolean | string
+  >(false)
   const [hasUnreadBelow, setHasUnreadBelow] = React.useState(false)
 
   const isTypingRef = React.useRef(false)
   const typingTimeoutRef = React.useRef<number | null>(null)
 
-  const { data: conversationsData, isLoading: isLoadingConversations } = useConversations()
-  const conversations = conversationsData?.conversations ?? []
+  const { data: conversationsData, isLoading: isLoadingConversations } =
+    useConversations()
+  const conversations = React.useMemo(
+    () => conversationsData?.conversations ?? [],
+    [conversationsData]
+  )
 
-  const targetUserId = userId ? Number(userId) : null
+  const targetUserId = conversationId
+    ? Number(conversationId)
+    : (userId ? Number(userId) : null)
 
-  // Check if targetUserId is a group conversation ID (only after conversations list is loaded)
+  // Check if this is a group conversation (based on URL prefix/param)
   const groupConversation = isLoadingConversations
     ? null
-    : conversations.find(
-        (c) => c.conversation.id === targetUserId && c.conversation.type === "group"
-      )
+    : conversationId
+      ? conversations.find(
+          (c) =>
+            c.conversation.id === Number(conversationId) &&
+            c.conversation.type === "group"
+        )
+      : null
 
   const localConversationId =
-    targetUserId !== null ? (conversationIdsByUser[targetUserId] ?? null) : null
+    targetUserId !== null && !conversationId
+      ? (conversationIdsByUser[targetUserId] ?? null)
+      : null
 
   // Only fetch direct conversation if conversations list is loaded and this is NOT a group
-  const shouldFetchDirect = targetUserId !== null && !isLoadingConversations && !groupConversation
+  const shouldFetchDirect =
+    targetUserId !== null && !isLoadingConversations && !groupConversation
 
   const { data: directConversation, isLoading: isConversationLoading } =
     useDirectConversation(shouldFetchDirect ? targetUserId : null)
@@ -86,9 +101,9 @@ export function useChat() {
     ? groupConversation.conversation.id
     : (localConversationId ?? directConversation?.conversation.id ?? null)
 
-  const activeConversation = conversations.find(
-    (c) => c.conversation.id === activeConversationId
-  ) ?? null
+  const activeConversation =
+    conversations.find((c) => c.conversation.id === activeConversationId) ??
+    null
 
   const {
     data: fetchedMessagesData,
@@ -112,7 +127,8 @@ export function useChat() {
       : (fetchedMessagesData?.pages[0]?.pins ?? [])
   const currentPin = pins[activePinIndex] ?? null
 
-  const isLoading = isLoadingConversations || isConversationLoading || isMessagesLoading
+  const isLoading =
+    isLoadingConversations || isConversationLoading || isMessagesLoading
   const mergedMessages = React.useMemo(
     () =>
       mergeMessages(
@@ -121,30 +137,95 @@ export function useChat() {
       ),
     [extraMessagesByUser, fetchedMessages, targetUserId]
   )
+  const otherMember = directConversation?.members.find(
+    (m) => m.userId === targetUserId
+  )
+
+  // Find other user in any group conversations we share
+  const groupMemberInfo = React.useMemo(() => {
+    if (!targetUserId || groupConversation || conversationId) return null
+    for (const c of conversations) {
+      const found = c.members.find((m) => m.userId === targetUserId)
+      if (found) return found
+    }
+    return null
+  }, [conversations, targetUserId, groupConversation, conversationId])
+
   const friend = groupConversation
     ? {
         id: groupConversation.conversation.id,
-        displayName: groupConversation.conversation.name || t("chat.unnamedGroup"),
+        displayName:
+          groupConversation.conversation.name || t("chat.unnamedGroup"),
         avatar: null,
         isOnline: false,
         isGroup: true,
         memberCount: groupConversation.members.length,
       }
-    : friendsData?.friends.find((f) => f.friend.id === targetUserId)?.friend
+    : otherMember
+      ? {
+          id: otherMember.userId,
+          displayName: otherMember.displayName,
+          avatar: otherMember.avatar,
+          isOnline: otherMember.isOnline,
+          isGroup: false,
+        }
+      : friendsData?.friends.find((f) => f.friend.id === targetUserId)?.friend
+        ? friendsData.friends.find((f) => f.friend.id === targetUserId)!.friend
+        : groupMemberInfo
+          ? {
+              id: groupMemberInfo.userId,
+              displayName: groupMemberInfo.displayName,
+              avatar: groupMemberInfo.avatar,
+              isOnline: groupMemberInfo.isOnline,
+              isGroup: false,
+            }
+          : undefined
   const replyDraft =
     replyDraftState.userId === targetUserId ? replyDraftState.message : null
 
   const currentUserId = Number(currentUser?.id)
 
   const getSenderName = React.useCallback(
-    (message: Pick<ChatMessage, "senderId">) => {
+    (message: Pick<ChatMessage, "senderId" | "sender">) => {
       if (message.senderId === currentUserId) {
         return currentUser?.displayName ?? `User #${message.senderId}`
       }
 
+      // 1. If group conversation, look up in activeConversation members
+      if (
+        activeConversation?.conversation?.type === "group" &&
+        activeConversation.members
+      ) {
+        const member = activeConversation.members.find(
+          (m) => m.userId === message.senderId
+        )
+        if (member) {
+          return member.displayName
+        }
+      }
+
+      // 2. If the message already contains the sender object (e.g. fetched from backend API)
+      if (message.sender?.displayName) {
+        return message.sender.displayName
+      }
+
+      // 3. Fallback to look up in friends
+      const friendSender = friendsData?.friends.find(
+        (f) => f.friend.id === message.senderId
+      )?.friend
+      if (friendSender) {
+        return friendSender.displayName
+      }
+
       return friend?.displayName ?? `User #${message.senderId}`
     },
-    [currentUser?.displayName, currentUserId, friend?.displayName]
+    [
+      currentUser?.displayName,
+      currentUserId,
+      friend?.displayName,
+      activeConversation,
+      friendsData,
+    ]
   )
 
   const buildReplyPreview = React.useCallback(
@@ -224,6 +305,7 @@ export function useChat() {
     setSocketPins,
     setActivePinIndex,
     setIsOtherUserTyping,
+    activeConversation,
   })
 
   const highlightedMessageId =

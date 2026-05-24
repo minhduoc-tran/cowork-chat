@@ -60,7 +60,7 @@ export const en = {
     daysAgo: "{{count}} days ago",
     addFriend: "Add friend",
     createGroup: "Create group",
-    groupCreated: "Group \"{{groupName}}\" was created",
+    groupCreated: 'Group "{{groupName}}" was created',
   },
   addFriend: {
     title: "Add Friend",
@@ -139,12 +139,14 @@ export const en = {
     tooltipAndOthers: "and {{count}} others",
     memberCount: "{{count}} members",
     unnamedGroup: "Unnamed Group",
-    systemGroupCreated: "{{actor}} created the group \"{{groupName}}\"",
-    systemGroupRenamed: "{{actor}} renamed the group to \"{{newName}}\"",
+    systemGroupCreated: '{{actor}} created the group "{{groupName}}"',
+    systemGroupRenamed: '{{actor}} renamed the group to "{{newName}}"',
     systemMemberJoined: "{{actor}} added {{target}} to the group",
     systemMemberJoinedSelf: "{{actor}} joined the group",
     systemMemberKicked: "{{actor}} removed {{target}} from the group",
     systemMemberLeft: "{{actor}} left the group",
+    groupDisbanded: "This group has been disbanded",
+    tagMembers: "Tag members",
   },
   createGroup: {
     title: "Create New Group",
@@ -177,11 +179,22 @@ export const en = {
   },
   leaveGroup: {
     title: "Leave Group",
-    confirmText: "Are you sure you want to leave this group? This action cannot be undone.",
+    confirmText:
+      "Are you sure you want to leave this group? This action cannot be undone.",
     cancel: "Cancel",
     leave: "Leave Group",
     leaving: "Leaving...",
     success: "Left group successfully",
     error: "Failed to leave group",
+  },
+  disbandGroup: {
+    title: "Disband Group",
+    confirmText:
+      "Are you sure you want to disband this group? All members will be removed and message history will be permanently deleted.",
+    cancel: "Cancel",
+    disband: "Disband Group",
+    disbanding: "Disbanding...",
+    success: "Group disbanded successfully",
+    error: "Failed to disband group",
   },
 } as const

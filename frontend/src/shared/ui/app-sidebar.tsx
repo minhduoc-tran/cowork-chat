@@ -156,7 +156,7 @@ function getConversationLink(
     const otherMember = item.members.find((m) => m.userId !== currentUserId)
     return otherMember ? `/chat/${otherMember.userId}` : "/conversations"
   }
-  return `/chat/${item.conversation.id}`
+  return `/chat/group/${item.conversation.id}`
 }
 
 function ConversationListSkeleton() {
@@ -252,7 +252,11 @@ function ConversationsPanel({
               )}
             </div>
             <span className="line-clamp-1 min-w-0 text-xs text-muted-foreground">
-              {getConversationPreviewText(item.lastMessage, t)}
+              {getConversationPreviewText(
+                item,
+                currentUserId ? Number(currentUserId) : undefined,
+                t
+              )}
             </span>
           </div>
         </Link>

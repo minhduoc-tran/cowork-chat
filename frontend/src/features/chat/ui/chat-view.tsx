@@ -4,7 +4,10 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
-import { useLeaveGroup } from "@/shared/api/features/conversation/hooks"
+import {
+  useDisbandGroup,
+  useLeaveGroup,
+} from "@/shared/api/features/conversation/hooks"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -88,7 +91,9 @@ export function ChatView() {
 
   const [leaveConfirmOpen, setLeaveConfirmOpen] = React.useState(false)
   const [editGroupOpen, setEditGroupOpen] = React.useState(false)
+  const [disbandConfirmOpen, setDisbandConfirmOpen] = React.useState(false)
   const leaveGroupMutation = useLeaveGroup()
+  const disbandGroupMutation = useDisbandGroup()
 
   const handleToggleSidebar = React.useCallback(() => {
     setSidebarOpen((prev) => {
@@ -112,6 +117,20 @@ export function ChatView() {
     }
   }
 
+  const handleDisbandGroup = async () => {
+    if (!activeConversation) return
+    try {
+      await disbandGroupMutation.mutateAsync(activeConversation.conversation.id)
+      toast.success(t("disbandGroup.success"))
+      setDisbandConfirmOpen(false)
+      setSidebarOpen(false)
+      navigate("/")
+    } catch (err: unknown) {
+      console.error(err)
+      toast.error(t("disbandGroup.error"))
+    }
+  }
+
   if (!targetUserId) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-white dark:bg-zinc-950">
@@ -123,8 +142,8 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex h-full w-full min-h-0 flex-row bg-background">
-      <div className="flex flex-1 min-w-0 flex-col border-r">
+    <div className="flex h-full min-h-0 w-full flex-row bg-background">
+      <div className="flex min-w-0 flex-1 flex-col border-r">
         <ChatHeader
           friend={friend}
           targetUserId={targetUserId}
@@ -177,6 +196,8 @@ export function ChatView() {
           setReplyDraft={setReplyDraft}
           scrollToMessage={scrollToMessage}
           getSenderName={getSenderName}
+          activeConversation={activeConversation}
+          currentUserId={currentUserId}
         />
       </div>
 
@@ -189,6 +210,7 @@ export function ChatView() {
           onViewProfile={setSelectedUserProfile}
           onLeaveGroup={() => setLeaveConfirmOpen(true)}
           onEditGroup={() => setEditGroupOpen(true)}
+          onDisbandGroup={() => setDisbandConfirmOpen(true)}
         />
       )}
 
@@ -215,7 +237,11 @@ export function ChatView() {
       />
 
       <EditGroupDialog
-        key={editGroupOpen ? `open-${activeConversation?.conversation?.id}` : "closed"}
+        key={
+          editGroupOpen
+            ? `open-${activeConversation?.conversation?.id}`
+            : "closed"
+        }
         open={editGroupOpen}
         onOpenChange={setEditGroupOpen}
         activeConversation={activeConversation}
@@ -250,6 +276,42 @@ export function ChatView() {
               {leaveGroupMutation.isPending
                 ? t("leaveGroup.leaving")
                 : t("leaveGroup.leave")}
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={disbandConfirmOpen}
+        onOpenChange={setDisbandConfirmOpen}
+      >
+        <AlertDialogContent className="max-w-md gap-5">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("disbandGroup.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("disbandGroup.confirmText")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center justify-end gap-2.5">
+            <Button
+              variant="outline"
+              onClick={() => setDisbandConfirmOpen(false)}
+              disabled={disbandGroupMutation.isPending}
+            >
+              {t("disbandGroup.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDisbandGroup}
+              disabled={disbandGroupMutation.isPending}
+              className="min-w-[100px] gap-1.5"
+            >
+              {disbandGroupMutation.isPending && (
+                <LoaderIcon className="size-4 animate-spin" />
+              )}
+              {disbandGroupMutation.isPending
+                ? t("disbandGroup.disbanding")
+                : t("disbandGroup.disband")}
             </Button>
           </div>
         </AlertDialogContent>

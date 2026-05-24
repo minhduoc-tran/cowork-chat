@@ -316,6 +316,28 @@ async function updateGroup(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function disbandGroup(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+    if (!Number.isInteger(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    await conversationService.disbandGroupConversation(
+      conversationId,
+      req.user.id
+    );
+
+    return ApiResponse.ok(res, "Group disbanded successfully", null);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export const conversationController = {
   createGroup,
   listConversations,
@@ -327,5 +349,6 @@ export const conversationController = {
   deleteMessage,
   toggleMessageReaction,
   leaveGroup,
-  updateGroup
+  updateGroup,
+  disbandGroup
 };

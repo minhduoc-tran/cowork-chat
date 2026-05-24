@@ -60,7 +60,7 @@ export const vi = {
     daysAgo: "{{count}} ngày trước",
     addFriend: "Thêm bạn",
     createGroup: "Tạo nhóm",
-    groupCreated: "Nhóm \"{{groupName}}\" đã được tạo",
+    groupCreated: 'Nhóm "{{groupName}}" đã được tạo',
   },
   addFriend: {
     title: "Thêm bạn",
@@ -139,12 +139,14 @@ export const vi = {
     tooltipAndOthers: "và {{count}} người khác",
     memberCount: "{{count}} thành viên",
     unnamedGroup: "Nhóm không tên",
-    systemGroupCreated: "{{actor}} đã tạo nhóm \"{{groupName}}\"",
-    systemGroupRenamed: "{{actor}} đã đổi tên nhóm thành \"{{newName}}\"",
+    systemGroupCreated: '{{actor}} đã tạo nhóm "{{groupName}}"',
+    systemGroupRenamed: '{{actor}} đã đổi tên nhóm thành "{{newName}}"',
     systemMemberJoined: "{{actor}} đã thêm {{target}} vào nhóm",
     systemMemberJoinedSelf: "{{actor}} đã tham gia nhóm",
     systemMemberKicked: "{{actor}} đã xóa {{target}} khỏi nhóm",
     systemMemberLeft: "{{actor}} đã rời khỏi nhóm",
+    groupDisbanded: "Nhóm này đã bị giải tán",
+    tagMembers: "Nhắc tên thành viên",
   },
   createGroup: {
     title: "Tạo nhóm mới",
@@ -177,11 +179,22 @@ export const vi = {
   },
   leaveGroup: {
     title: "Rời khỏi nhóm",
-    confirmText: "Bạn có chắc chắn muốn rời khỏi nhóm này không? Hành động này không thể hoàn tác.",
+    confirmText:
+      "Bạn có chắc chắn muốn rời khỏi nhóm này không? Hành động này không thể hoàn tác.",
     cancel: "Hủy",
     leave: "Rời nhóm",
     leaving: "Đang rời nhóm...",
     success: "Đã rời nhóm thành công",
     error: "Rời nhóm thất bại",
+  },
+  disbandGroup: {
+    title: "Giải tán nhóm",
+    confirmText:
+      "Bạn có chắc chắn muốn giải tán nhóm này không? Tất cả thành viên sẽ bị mời ra ngoài và lịch sử tin nhắn sẽ bị xóa vĩnh viễn.",
+    cancel: "Hủy",
+    disband: "Giải tán nhóm",
+    disbanding: "Đang giải tán...",
+    success: "Đã giải tán nhóm thành công",
+    error: "Giải tán nhóm thất bại",
   },
 } as const

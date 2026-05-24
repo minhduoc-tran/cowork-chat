@@ -1,5 +1,8 @@
 import * as React from "react"
 import { useQueryClient } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
+import { useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 import type {
   ConversationMessageReplyPreview,
@@ -23,7 +26,8 @@ interface UseChatSocketOptions {
   setRealtimeLastReadId: (val: number | null) => void
   setSocketPins: (val: ConversationPin[] | undefined) => void
   setActivePinIndex: React.Dispatch<React.SetStateAction<number>>
-  setIsOtherUserTyping: (val: boolean) => void
+  setIsOtherUserTyping: (val: boolean | string) => void
+  activeConversation?: ConversationListItem | null
 }
 
 export function useChatSocket({
@@ -37,8 +41,11 @@ export function useChatSocket({
   setSocketPins,
   setActivePinIndex,
   setIsOtherUserTyping,
+  activeConversation,
 }: UseChatSocketOptions) {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
+  const navigate = useNavigate()
 
   // 1. Handle room joins, active conversation presence, and initial read receipt
   React.useEffect(() => {
@@ -76,7 +83,8 @@ export function useChatSocket({
     if (!socket) return
 
     const handleMessage = (payload: {
-      conversation: { id: number }
+      conversation: { id: number; type: "direct" | "group" }
+      members: { userId: number }[]
       message: Omit<ChatMessage, "replyTo">
       replyTo: ConversationMessageReplyPreview | null
     }) => {
@@ -85,10 +93,16 @@ export function useChatSocket({
         replyTo: payload.replyTo,
       }
 
+      const isDirectMatch =
+        payload.conversation.type === "direct" &&
+        targetUserId !== null &&
+        payload.members.some((m) => m.userId === targetUserId)
+
       if (
         (activeConversationId &&
           payload.conversation.id === activeConversationId) ||
-        nextMessage.senderId === targetUserId
+        nextMessage.senderId === targetUserId ||
+        isDirectMatch
       ) {
         if (targetUserId !== null && !localConversationId) {
           setConversationIdsByUser((prev) => ({
@@ -134,6 +148,9 @@ export function useChatSocket({
           })
         }
       }
+
+      // Invalidate conversations list so it updates the last message and order in sidebar
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
     }
 
     const handleMessageRead = (payload: {
@@ -231,6 +248,25 @@ export function useChatSocket({
       userId: number
       isTyping: boolean
     }) => {
+      // 1. Group conversation typing logic
+      if (activeConversation?.conversation?.type === "group") {
+        if (payload.conversationId === activeConversationId) {
+          if (payload.isTyping) {
+            const member = activeConversation.members.find(
+              (m) => m.userId === payload.userId
+            )
+            const displayName = member
+              ? member.displayName
+              : `User #${payload.userId}`
+            setIsOtherUserTyping(displayName)
+          } else {
+            setIsOtherUserTyping(false)
+          }
+        }
+        return
+      }
+
+      // 2. Direct conversation typing logic
       if (payload.userId !== targetUserId) return
 
       if (targetUserId !== null && !localConversationId) {
@@ -249,12 +285,24 @@ export function useChatSocket({
       }
     }
 
+    const handleConversationDeleted = (payload: { conversationId: number }) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["conversations"],
+      })
+
+      if (payload.conversationId === activeConversationId) {
+        toast.warning(t("chat.groupDisbanded", "Nhóm này đã bị giải tán"))
+        navigate("/")
+      }
+    }
+
     socket.on("message.received", handleMessage)
     socket.on("message.read", handleMessageRead)
     socket.on("message.updated", handleMessageUpdated)
     socket.on("message.deleted", handleMessageDeleted)
     socket.on("pin:updated", handlePinUpdated)
     socket.on("typing.updated", handleTypingUpdated)
+    socket.on("conversation.deleted", handleConversationDeleted)
 
     return () => {
       socket.off("message.received", handleMessage)
@@ -263,6 +311,7 @@ export function useChatSocket({
       socket.off("message.deleted", handleMessageDeleted)
       socket.off("pin:updated", handlePinUpdated)
       socket.off("typing.updated", handleTypingUpdated)
+      socket.off("conversation.deleted", handleConversationDeleted)
     }
   }, [
     activeConversationId,
@@ -276,5 +325,8 @@ export function useChatSocket({
     setSocketPins,
     setActivePinIndex,
     setIsOtherUserTyping,
+    t,
+    navigate,
+    activeConversation,
   ])
 }

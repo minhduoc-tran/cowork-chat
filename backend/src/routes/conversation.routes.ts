@@ -11,6 +11,7 @@ router.get("/:conversationId/pins", conversationController.listPins);
 router.post("/groups", conversationController.createGroup);
 router.post("/:conversationId/leave", conversationController.leaveGroup);
 router.put("/:conversationId/group", conversationController.updateGroup);
+router.delete("/:conversationId", conversationController.disbandGroup);
 router.put("/:conversationId/pin", conversationController.pinMessage);
 router.delete(
   "/:conversationId/pins/:messageId",

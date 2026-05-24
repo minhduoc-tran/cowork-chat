@@ -25,6 +25,7 @@ export {
   useConversations,
   useCreateGroup,
   useDirectConversation,
+  useDisbandGroup,
   useLeaveGroup,
   useToggleMessageReaction,
   useUpdateGroup,

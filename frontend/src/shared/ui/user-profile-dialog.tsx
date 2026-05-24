@@ -1,12 +1,23 @@
 import * as React from "react"
-import { CalendarIcon, MailIcon, MessageSquareIcon, ShieldCheckIcon, UserPlusIcon, XIcon } from "lucide-react"
+import {
+  CalendarIcon,
+  MailIcon,
+  MessageSquareIcon,
+  ShieldCheckIcon,
+  UserPlusIcon,
+  XIcon,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { useFriends } from "@/shared/api/features/friend/hooks"
 import { useSendFriendRequest } from "@/shared/api/features/user/hooks"
-import { AlertDialog, AlertDialogContent, AlertDialogFooter } from "@/shared/ui/alert-dialog"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogFooter,
+} from "@/shared/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { Button } from "@/shared/ui/button"
 
@@ -65,7 +76,7 @@ export function UserProfileDialog({ user, onClose }: UserProfileDialogProps) {
     if (role === "owner") return "Trưởng nhóm (Owner)"
     if (role === "admin") return "Quản trị viên (Admin)"
     return "Thành viên (Member)"
-  };
+  }
 
   const formattedJoinedDate = user.joinedAt
     ? new Date(user.joinedAt).toLocaleDateString(undefined, {
@@ -77,13 +88,13 @@ export function UserProfileDialog({ user, onClose }: UserProfileDialogProps) {
 
   return (
     <AlertDialog open={!!user} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent className="max-w-xs gap-0 overflow-hidden p-0 rounded-xl">
+      <AlertDialogContent className="max-w-xs gap-0 overflow-hidden rounded-xl p-0">
         {/* Header containing Close button */}
-        <div className="absolute right-3 top-3 z-10">
+        <div className="absolute top-3 right-3 z-10">
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white/90 hover:bg-black/60 transition-all outline-none"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white/90 transition-all outline-none hover:bg-black/60"
             aria-label={t("profile.close")}
           >
             <XIcon className="size-4" />
@@ -101,11 +112,11 @@ export function UserProfileDialog({ user, onClose }: UserProfileDialogProps) {
                 src={user.avatar ?? undefined}
                 alt={user.displayName}
               />
-              <AvatarFallback className="rounded-full text-2xl font-bold bg-muted text-muted-foreground">
+              <AvatarFallback className="rounded-full bg-muted text-2xl font-bold text-muted-foreground">
                 {initials || "?"}
               </AvatarFallback>
             </Avatar>
-            <h3 className="mt-2 text-base font-bold text-foreground text-center">
+            <h3 className="mt-2 text-center text-base font-bold text-foreground">
               {user.displayName}
             </h3>
             {user.role && (
@@ -123,9 +134,13 @@ export function UserProfileDialog({ user, onClose }: UserProfileDialogProps) {
           <div className="flex items-center gap-3">
             <MailIcon className="size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Email</p>
-              <p className="truncate text-foreground font-medium">
-                {isFriend && friendEmail ? friendEmail : "Chỉ chia sẻ với bạn bè"}
+              <p className="text-[10px] font-semibold tracking-wider text-muted-foreground capitalize">
+                Email
+              </p>
+              <p className="truncate font-medium text-foreground">
+                {isFriend && friendEmail
+                  ? friendEmail
+                  : "Chỉ chia sẻ với bạn bè"}
               </p>
             </div>
           </div>
@@ -135,45 +150,50 @@ export function UserProfileDialog({ user, onClose }: UserProfileDialogProps) {
             <div className="flex items-center gap-3">
               <CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Ngày tham gia nhóm</p>
-                <p className="text-foreground font-medium">{formattedJoinedDate}</p>
+                <p className="text-[10px] font-semibold tracking-wider text-muted-foreground capitalize">
+                  Ngày tham gia nhóm
+                </p>
+                <p className="font-medium text-foreground">
+                  {formattedJoinedDate}
+                </p>
               </div>
             </div>
           )}
         </div>
 
         {/* Action footer */}
-        <AlertDialogFooter className="border-t bg-muted/10 p-3.5 gap-2 sm:flex-row sm:justify-center">
-          {isFriend ? (
-            <Button
-              onClick={handleStartChat}
-              className="w-full gap-2 text-xs"
-              size="sm"
-            >
-              <MessageSquareIcon className="size-3.5" />
-              Nhắn tin
-            </Button>
-          ) : requestSent ? (
-            <Button
-              disabled
-              variant="outline"
-              className="w-full gap-2 text-xs text-emerald-600 border-emerald-200 bg-emerald-50/50"
-              size="sm"
-            >
-              <UserPlusIcon className="size-3.5" />
-              Đã gửi lời mời
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSendRequest}
-              disabled={sendRequest.isPending}
-              className="w-full gap-2 text-xs"
-              size="sm"
-            >
-              <UserPlusIcon className="size-3.5" />
-              {sendRequest.isPending ? "Đang gửi..." : "Kết bạn"}
-            </Button>
-          )}
+        <AlertDialogFooter className="flex flex-col gap-2 border-t bg-muted/10 p-3.5 sm:flex-row sm:justify-center">
+          {!isFriend &&
+            (requestSent ? (
+              <Button
+                disabled
+                variant="outline"
+                className="w-full gap-2 border-emerald-200 bg-emerald-50/50 text-xs text-emerald-600 sm:flex-1"
+                size="sm"
+              >
+                <UserPlusIcon className="size-3.5" />
+                Đã gửi lời mời
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSendRequest}
+                disabled={sendRequest.isPending}
+                variant="outline"
+                className="w-full gap-2 text-xs sm:flex-1"
+                size="sm"
+              >
+                <UserPlusIcon className="size-3.5" />
+                {sendRequest.isPending ? "Đang gửi..." : "Kết bạn"}
+              </Button>
+            ))}
+          <Button
+            onClick={handleStartChat}
+            className="w-full gap-2 text-xs sm:flex-1"
+            size="sm"
+          >
+            <MessageSquareIcon className="size-3.5" />
+            Nhắn tin
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

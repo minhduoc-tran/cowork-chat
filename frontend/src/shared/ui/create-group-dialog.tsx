@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CheckIcon,LoaderIcon, SearchIcon, UsersIcon } from "lucide-react"
+import { CheckIcon, LoaderIcon, SearchIcon, UsersIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
@@ -48,9 +48,10 @@ export function CreateGroupDialog({
     const query = searchQuery.trim().toLowerCase()
     if (!query) return friendsData.friends
 
-    return friendsData.friends.filter((item) =>
-      item.friend.displayName.toLowerCase().includes(query) ||
-      item.friend.email.toLowerCase().includes(query)
+    return friendsData.friends.filter(
+      (item) =>
+        item.friend.displayName.toLowerCase().includes(query) ||
+        item.friend.email.toLowerCase().includes(query)
     )
   }, [friendsData, searchQuery])
 
@@ -83,13 +84,14 @@ export function CreateGroupDialog({
       handleOpenChange(false)
 
       if (result?.conversation?.id) {
-        navigate(`/chat/${result.conversation.id}`)
+        navigate(`/chat/group/${result.conversation.id}`)
       }
     } catch (err: unknown) {
       console.error(err)
       const errorMsg =
         err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          ? (err as { response?: { data?: { message?: string } } }).response
+              ?.data?.message
           : null
       toast.error(errorMsg || t("createGroup.error"))
     }
@@ -113,7 +115,10 @@ export function CreateGroupDialog({
         <div className="flex flex-col gap-4">
           {/* Group Name input */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="group-name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <label
+              htmlFor="group-name"
+              className="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+            >
               {t("createGroup.groupName")}
             </label>
             <input
@@ -122,7 +127,7 @@ export function CreateGroupDialog({
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder={t("createGroup.groupNamePlaceholder")}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-all duration-200 outline-none focus:border-ring focus:ring-2 focus:ring-ring"
               disabled={createGroupMutation.isPending}
               autoFocus
             />
@@ -130,7 +135,7 @@ export function CreateGroupDialog({
 
           {/* Members Selection */}
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <label className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               {t("createGroup.selectFriends")} ({selectedFriendIds.length})
             </label>
 
@@ -142,22 +147,22 @@ export function CreateGroupDialog({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t("createGroup.selectFriendsPlaceholder")}
-                  className="w-full rounded-md border border-input bg-background py-2 pr-3 pl-10 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
+                  className="w-full rounded-md border border-input bg-background py-2 pr-3 pl-10 text-sm transition-all duration-200 outline-none focus:border-ring focus:ring-2 focus:ring-ring"
                   disabled={createGroupMutation.isPending}
                 />
               </div>
             )}
 
             {/* Friends list container */}
-            <div className="mt-1 max-h-[220px] min-h-[100px] overflow-y-auto rounded-lg border bg-muted/20 p-1 flex flex-col gap-0.5 custom-scrollbar">
+            <div className="custom-scrollbar mt-1 flex max-h-[220px] min-h-[100px] flex-col gap-0.5 overflow-y-auto rounded-lg border bg-muted/20 p-1">
               {isLoadingFriends ? (
-                <div className="flex flex-1 items-center justify-center py-6 text-sm text-muted-foreground gap-2">
+                <div className="flex flex-1 items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                   <LoaderIcon className="size-4 animate-spin text-primary" />
                   <span>Loading...</span>
                 </div>
               ) : !hasFriends ? (
-                <div className="flex flex-1 flex-col items-center justify-center py-8 text-center text-sm text-muted-foreground px-4 gap-1">
-                  <UsersIcon className="size-8 text-muted-foreground/40 mb-1" />
+                <div className="flex flex-1 flex-col items-center justify-center gap-1 px-4 py-8 text-center text-sm text-muted-foreground">
+                  <UsersIcon className="mb-1 size-8 text-muted-foreground/40" />
                   <span>{t("createGroup.noFriendsToGroup")}</span>
                 </div>
               ) : filteredFriends.length === 0 ? (
@@ -173,12 +178,11 @@ export function CreateGroupDialog({
                       type="button"
                       onClick={() => handleToggleFriend(item.friend.id)}
                       disabled={createGroupMutation.isPending}
-                      className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-all duration-150 outline-none
-                        ${isSelected 
-                          ? "bg-primary/10 text-primary hover:bg-primary/15" 
+                      className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-all duration-150 outline-none ${
+                        isSelected
+                          ? "bg-primary/10 text-primary hover:bg-primary/15"
                           : "hover:bg-muted"
-                        }
-                      `}
+                      } `}
                     >
                       <div className="relative shrink-0">
                         <Avatar className="h-8 w-8 rounded-full">
@@ -224,7 +228,11 @@ export function CreateGroupDialog({
           </Button>
           <Button
             onClick={handleCreateGroup}
-            disabled={createGroupMutation.isPending || !groupName.trim() || selectedFriendIds.length < 1}
+            disabled={
+              createGroupMutation.isPending ||
+              !groupName.trim() ||
+              selectedFriendIds.length < 1
+            }
             className="min-w-[100px] gap-1.5 px-4 shadow-sm"
           >
             {createGroupMutation.isPending && (

@@ -1,4 +1,9 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 
 import { conversationApi } from "./api"
 
@@ -107,3 +112,13 @@ export function useUpdateGroup() {
   })
 }
 
+export function useDisbandGroup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (conversationId: number) =>
+      conversationApi.disbandGroup(conversationId).then((res) => res.data.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    },
+  })
+}

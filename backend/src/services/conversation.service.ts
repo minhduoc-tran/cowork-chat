@@ -938,6 +938,55 @@ async function updateGroupConversation(
   return { success: true, conversation: result.updatedConversation };
 }
 
+async function disbandGroupConversation(
+  conversationId: number,
+  userId: number
+) {
+  const conversation = await db.query.conversationsTable.findFirst({
+    where: eq(conversationsTable.id, conversationId)
+  });
+
+  if (!conversation) {
+    throw ApiError.notFound("Group conversation not found");
+  }
+
+  if (conversation.type !== "group") {
+    throw ApiError.badRequest("Cannot disband a direct conversation");
+  }
+
+  const currentMember = await db.query.conversationMembersTable.findFirst({
+    where: and(
+      eq(conversationMembersTable.conversationId, conversationId),
+      eq(conversationMembersTable.userId, userId),
+      isNull(conversationMembersTable.leftAt)
+    )
+  });
+
+  if (!currentMember || currentMember.role !== "owner") {
+    throw ApiError.forbidden("Only the group owner can disband the group");
+  }
+
+  const activeMembers = await db
+    .select({ userId: conversationMembersTable.userId })
+    .from(conversationMembersTable)
+    .where(
+      and(
+        eq(conversationMembersTable.conversationId, conversationId),
+        isNull(conversationMembersTable.leftAt)
+      )
+    );
+
+  const memberIds = activeMembers.map(m => m.userId);
+
+  await db
+    .delete(conversationsTable)
+    .where(eq(conversationsTable.id, conversationId));
+
+  socketEmitter.emitConversationDeleted(conversationId, memberIds);
+
+  return { success: true };
+}
+
 export const conversationService = {
   createGroupConversation,
   findDirectConversationBetweenUsers,
@@ -950,5 +999,6 @@ export const conversationService = {
   pinConversationMessage,
   unpinConversationMessage,
   leaveGroupConversation,
-  updateGroupConversation
+  updateGroupConversation,
+  disbandGroupConversation
 };

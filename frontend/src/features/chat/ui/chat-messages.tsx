@@ -118,7 +118,7 @@ export function ChatMessages({
   return (
     <>
       <ScrollArea className="relative min-h-0 flex-1 px-4" ref={scrollRef}>
-      <style>{`
+        <style>{`
         @keyframes context-menu-in {
           from {
             opacity: 0;
@@ -149,128 +149,136 @@ export function ChatMessages({
           animation: scale-spring 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
       `}</style>
-      <div className="min-h-full space-y-3 py-4">
-        {isFetchingNextPage && (
-          <div className="py-2 text-center text-xs text-muted-foreground">
-            {t("chat.loading")}...
-          </div>
-        )}
-        {isLoading && (
-          <div className="text-center text-sm text-muted-foreground">
-            {t("chat.loading")}
-          </div>
-        )}
-        {!isLoading && messages.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-            {t("chat.noMessages")}
-          </div>
-        )}
-        {messages.map((msg, index) => {
-          if (msg.type === "system") {
+        <div className="min-h-full space-y-3 py-4">
+          {isFetchingNextPage && (
+            <div className="py-2 text-center text-xs text-muted-foreground">
+              {t("chat.loading")}...
+            </div>
+          )}
+          {isLoading && (
+            <div className="text-center text-sm text-muted-foreground">
+              {t("chat.loading")}
+            </div>
+          )}
+          {!isLoading && messages.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+              {t("chat.noMessages")}
+            </div>
+          )}
+          {messages.map((msg, index) => {
+            if (msg.type === "system") {
+              return (
+                <SystemMessageItem
+                  key={msg.id}
+                  ref={(node) => {
+                    messageRefs.current[msg.id] = node
+                  }}
+                  msg={msg}
+                  t={t}
+                  activeConversation={activeConversation}
+                  currentUserId={currentUserId}
+                />
+              )
+            }
+
+            const isMine = Number(msg.senderId) === Number(currentUserId)
+            const isRead =
+              isMine &&
+              otherMemberLastReadId !== null &&
+              msg.id <= otherMemberLastReadId
+            const isPinned = pins.some((p) => p.messageId === msg.id)
+
+            const prevMsg = messages[index - 1]
+            const nextMsg = messages[index + 1]
+
+            const isSameSender = (
+              m1: typeof msg | undefined,
+              m2: typeof msg | undefined
+            ) => {
+              if (!m1 || !m2) return false
+              if (m1.type === "system" || m2.type === "system") return false
+              return m1.senderId === m2.senderId
+            }
+
+            const isRecent = (
+              m1: typeof msg | undefined,
+              m2: typeof msg | undefined
+            ) => {
+              if (!m1 || !m2) return false
+              const t1 = new Date(m1.createdAt).getTime()
+              const t2 = new Date(m2.createdAt).getTime()
+              return Math.abs(t1 - t2) < 5 * 60 * 1000
+            }
+
+            const isGroupedWithPrev =
+              isSameSender(msg, prevMsg) && isRecent(msg, prevMsg)
+            const isGroupedWithNext =
+              isSameSender(msg, nextMsg) && isRecent(msg, nextMsg)
+
+            const isGroup = activeConversation?.conversation?.type === "group"
+            const showName = !isMine && isGroup && !isGroupedWithPrev
+            const showAvatar = !isMine && isGroup && !isGroupedWithNext
+            const hasAvatarSpace = !isMine && isGroup
+
             return (
-              <SystemMessageItem
+              <ChatMessageItem
                 key={msg.id}
                 ref={(node) => {
                   messageRefs.current[msg.id] = node
                 }}
                 msg={msg}
-                t={t}
-                activeConversation={activeConversation}
+                scrollRef={scrollRef}
                 currentUserId={currentUserId}
+                isMine={isMine}
+                isRead={isRead}
+                isPinned={isPinned}
+                highlightedMessageId={highlightedMessageId}
+                t={t}
+                handleToggleReaction={handleToggleReaction}
+                scrollToMessage={scrollToMessage}
+                setReplyDraft={setReplyDraft}
+                setSelectedMessage={setSelectedMessage}
+                setPinConfirmOpen={setPinConfirmOpen}
+                setUnpinConfirmOpen={setUnpinConfirmOpen}
+                setRecallConfirmOpen={setRecallConfirmOpen}
+                setDeleteConfirmOpen={setDeleteConfirmOpen}
+                activeConversation={activeConversation}
+                showName={showName}
+                showAvatar={showAvatar}
+                hasAvatarSpace={hasAvatarSpace}
+                isGroupedWithPrev={isGroupedWithPrev}
+                onViewProfile={setSelectedUserProfile}
               />
             )
-          }
-
-          const isMine = Number(msg.senderId) === Number(currentUserId)
-          const isRead =
-            isMine &&
-            otherMemberLastReadId !== null &&
-            msg.id <= otherMemberLastReadId
-          const isPinned = pins.some((p) => p.messageId === msg.id)
-
-          const prevMsg = messages[index - 1]
-          const nextMsg = messages[index + 1]
-
-          const isSameSender = (m1: typeof msg | undefined, m2: typeof msg | undefined) => {
-            if (!m1 || !m2) return false
-            if (m1.type === "system" || m2.type === "system") return false
-            return m1.senderId === m2.senderId
-          }
-
-          const isRecent = (m1: typeof msg | undefined, m2: typeof msg | undefined) => {
-            if (!m1 || !m2) return false
-            const t1 = new Date(m1.createdAt).getTime()
-            const t2 = new Date(m2.createdAt).getTime()
-            return Math.abs(t1 - t2) < 5 * 60 * 1000
-          }
-
-          const isGroupedWithPrev = isSameSender(msg, prevMsg) && isRecent(msg, prevMsg)
-          const isGroupedWithNext = isSameSender(msg, nextMsg) && isRecent(msg, nextMsg)
-
-          const isGroup = activeConversation?.conversation?.type === "group"
-          const showName = !isMine && isGroup && !isGroupedWithPrev
-          const showAvatar = !isMine && isGroup && !isGroupedWithNext
-          const hasAvatarSpace = !isMine && isGroup
-
-          return (
-            <ChatMessageItem
-              key={msg.id}
-              ref={(node) => {
-                messageRefs.current[msg.id] = node
-              }}
-              msg={msg}
-              scrollRef={scrollRef}
-              currentUserId={currentUserId}
-              isMine={isMine}
-              isRead={isRead}
-              isPinned={isPinned}
-              highlightedMessageId={highlightedMessageId}
-              t={t}
-              handleToggleReaction={handleToggleReaction}
-              scrollToMessage={scrollToMessage}
-              setReplyDraft={setReplyDraft}
-              setSelectedMessage={setSelectedMessage}
-              setPinConfirmOpen={setPinConfirmOpen}
-              setUnpinConfirmOpen={setUnpinConfirmOpen}
-              setRecallConfirmOpen={setRecallConfirmOpen}
-              setDeleteConfirmOpen={setDeleteConfirmOpen}
-              activeConversation={activeConversation}
-              showName={showName}
-              showAvatar={showAvatar}
-              hasAvatarSpace={hasAvatarSpace}
-              isGroupedWithPrev={isGroupedWithPrev}
-              onViewProfile={setSelectedUserProfile}
-            />
-          )
-        })}
-      </div>
-      {scrollHintMode !== "hidden" && (
-        <button
-          type="button"
-          onClick={handleScrollToBottom}
-          className={cn(
-            "absolute right-4 bottom-4 z-10 flex h-9 items-center justify-center rounded-full border border-border bg-background shadow-lg transition-all duration-300 hover:bg-muted active:scale-95",
-            scrollHintMode === "unread"
-              ? "gap-1.5 px-4 text-xs font-medium text-primary"
-              : "w-9 text-muted-foreground hover:text-foreground"
-          )}
-        >
-          {scrollHintMode === "unread" ? (
-            <>
-              <span>{t("chat.newMessagesBelow")}</span>
-              <ArrowDown className="size-4 animate-bounce" />
-            </>
-          ) : (
-            <ArrowDown className="size-4" />
-          )}
-        </button>
-      )}
-    </ScrollArea>
-    <UserProfileDialog
-      key={selectedUserProfile?.userId ?? "none"}
-      user={selectedUserProfile}
-      onClose={() => setSelectedUserProfile(null)}
-    />
+          })}
+        </div>
+        {scrollHintMode !== "hidden" && (
+          <button
+            type="button"
+            onClick={handleScrollToBottom}
+            className={cn(
+              "absolute right-4 bottom-4 z-10 flex h-9 items-center justify-center rounded-full border border-border bg-background shadow-lg transition-all duration-300 hover:bg-muted active:scale-95",
+              scrollHintMode === "unread"
+                ? "gap-1.5 px-4 text-xs font-medium text-primary"
+                : "w-9 text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {scrollHintMode === "unread" ? (
+              <>
+                <span>{t("chat.newMessagesBelow")}</span>
+                <ArrowDown className="size-4 animate-bounce" />
+              </>
+            ) : (
+              <ArrowDown className="size-4" />
+            )}
+          </button>
+        )}
+      </ScrollArea>
+      <UserProfileDialog
+        key={selectedUserProfile?.userId ?? "none"}
+        user={selectedUserProfile}
+        onClose={() => setSelectedUserProfile(null)}
+      />
     </>
   )
 }
@@ -320,100 +328,101 @@ interface SystemMessageItemProps {
   currentUserId: number
 }
 
-const SystemMessageItem = React.forwardRef<HTMLDivElement, SystemMessageItemProps>(
-  ({ msg, t, activeConversation, currentUserId }, ref) => {
-    const text = React.useMemo(() => {
-      if (!msg.content) return ""
-      try {
-        const payload = JSON.parse(msg.content)
-        const eventType = payload.eventType
+const SystemMessageItem = React.forwardRef<
+  HTMLDivElement,
+  SystemMessageItemProps
+>(({ msg, t, activeConversation, currentUserId }, ref) => {
+  const text = React.useMemo(() => {
+    if (!msg.content) return ""
+    try {
+      const payload = JSON.parse(msg.content)
+      const eventType = payload.eventType
 
-        const getActorName = (actorId: number, defaultName?: string) => {
-          if (Number(actorId) === Number(currentUserId)) {
-            return t("chat.tooltipYou")
-          }
-          if (activeConversation?.members) {
-            const member = activeConversation.members.find(
-              (m) => m.userId === actorId
-            )
-            if (member) return member.displayName
-          }
-          return defaultName || `User #${actorId}`
+      const getActorName = (actorId: number, defaultName?: string) => {
+        if (Number(actorId) === Number(currentUserId)) {
+          return t("chat.tooltipYou")
         }
-
-        if (eventType === "group_created") {
-          const actorName = getActorName(payload.actorId, payload.actorName)
-          return (
-            t("chat.systemGroupCreated", {
-              actor: actorName,
-              groupName: payload.groupName,
-            }) || `${actorName} đã tạo nhóm "${payload.groupName}"`
+        if (activeConversation?.members) {
+          const member = activeConversation.members.find(
+            (m) => m.userId === actorId
           )
+          if (member) return member.displayName
         }
+        return defaultName || `User #${actorId}`
+      }
 
-        if (eventType === "group_renamed") {
-          const actorName = getActorName(payload.actorId, payload.actorName)
+      if (eventType === "group_created") {
+        const actorName = getActorName(payload.actorId, payload.actorName)
+        return (
+          t("chat.systemGroupCreated", {
+            actor: actorName,
+            groupName: payload.groupName,
+          }) || `${actorName} đã tạo nhóm "${payload.groupName}"`
+        )
+      }
+
+      if (eventType === "group_renamed") {
+        const actorName = getActorName(payload.actorId, payload.actorName)
+        return (
+          t("chat.systemGroupRenamed", {
+            actor: actorName,
+            newName: payload.newName,
+          }) || `${actorName} đã đổi tên nhóm thành "${payload.newName}"`
+        )
+      }
+
+      if (eventType === "member_joined") {
+        const actorName = getActorName(payload.actorId, payload.actorName)
+        const targetName = getActorName(payload.targetId, payload.targetName)
+        if (Number(payload.actorId) === Number(payload.targetId)) {
           return (
-            t("chat.systemGroupRenamed", {
+            t("chat.systemMemberJoinedSelf", {
               actor: actorName,
-              newName: payload.newName,
-            }) || `${actorName} đã đổi tên nhóm thành "${payload.newName}"`
+            }) || `${actorName} đã tham gia nhóm`
           )
-        }
-
-        if (eventType === "member_joined") {
-          const actorName = getActorName(payload.actorId, payload.actorName)
-          const targetName = getActorName(payload.targetId, payload.targetName)
-          if (Number(payload.actorId) === Number(payload.targetId)) {
-            return (
-              t("chat.systemMemberJoinedSelf", {
-                actor: actorName,
-              }) || `${actorName} đã tham gia nhóm`
-            )
-          } else {
-            return (
-              t("chat.systemMemberJoined", {
-                actor: actorName,
-                target: targetName,
-              }) || `${actorName} đã thêm ${targetName} vào nhóm`
-            )
-          }
-        }
-
-        if (eventType === "member_kicked") {
-          const actorName = getActorName(payload.actorId, payload.actorName)
-          const targetName = getActorName(payload.targetId, payload.targetName)
+        } else {
           return (
-            t("chat.systemMemberKicked", {
+            t("chat.systemMemberJoined", {
               actor: actorName,
               target: targetName,
-            }) || `${actorName} đã xóa ${targetName} khỏi nhóm`
+            }) || `${actorName} đã thêm ${targetName} vào nhóm`
           )
         }
-
-        if (eventType === "member_left") {
-          const actorName = getActorName(payload.actorId, payload.displayName)
-          return (
-            t("chat.systemMemberLeft", {
-              actor: actorName,
-            }) || `${actorName} đã rời khỏi nhóm`
-          )
-        }
-      } catch (e) {
-        console.error("Failed to parse system message content:", e)
       }
-      return msg.content
-    }, [msg.content, activeConversation, currentUserId, t])
 
-    return (
-      <div ref={ref} className="flex w-full justify-center py-2 select-none">
-        <span className="rounded-full bg-muted/65 px-4 py-1.5 text-center text-[11px] font-medium text-muted-foreground shadow-xs">
-          {text}
-        </span>
-      </div>
-    )
-  }
-)
+      if (eventType === "member_kicked") {
+        const actorName = getActorName(payload.actorId, payload.actorName)
+        const targetName = getActorName(payload.targetId, payload.targetName)
+        return (
+          t("chat.systemMemberKicked", {
+            actor: actorName,
+            target: targetName,
+          }) || `${actorName} đã xóa ${targetName} khỏi nhóm`
+        )
+      }
+
+      if (eventType === "member_left") {
+        const actorName = getActorName(payload.actorId, payload.displayName)
+        return (
+          t("chat.systemMemberLeft", {
+            actor: actorName,
+          }) || `${actorName} đã rời khỏi nhóm`
+        )
+      }
+    } catch (e) {
+      console.error("Failed to parse system message content:", e)
+    }
+    return msg.content
+  }, [msg.content, activeConversation, currentUserId, t])
+
+  return (
+    <div ref={ref} className="flex w-full justify-center py-2 select-none">
+      <span className="rounded-full bg-muted/65 px-4 py-1.5 text-center text-[11px] font-medium text-muted-foreground shadow-xs">
+        {text}
+      </span>
+    </div>
+  )
+})
 SystemMessageItem.displayName = "SystemMessageItem"
 
 const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
@@ -457,6 +466,24 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
       if (!isGroup || !activeConversation?.members) return null
       return activeConversation.members.find((m) => m.userId === msg.senderId)
     }, [isGroup, activeConversation, msg.senderId])
+
+    const senderDisplayName = React.useMemo(() => {
+      return (
+        senderMember?.displayName ??
+        msg.sender?.displayName ??
+        `User #${msg.senderId}`
+      )
+    }, [senderMember, msg.sender?.displayName, msg.senderId])
+
+    const senderAvatar = React.useMemo(() => {
+      return senderMember?.avatar ?? msg.sender?.avatar ?? null
+    }, [senderMember, msg.sender?.avatar])
+
+    const currentDisplayName = React.useMemo(() => {
+      if (!activeConversation?.members) return undefined
+      return activeConversation.members.find((m) => m.userId === currentUserId)
+        ?.displayName
+    }, [activeConversation, currentUserId])
 
     React.useEffect(() => {
       setScrollEl(scrollRef.current)
@@ -541,26 +568,25 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
       <div
         ref={ref}
         className={cn(
-          "flex w-full items-end gap-2 scroll-mt-24 rounded-3xl",
+          "flex w-full scroll-mt-24 items-end gap-2 rounded-3xl",
           isMine ? "justify-end" : "justify-start",
           isGroupedWithPrev ? "mt-0.5" : "mt-3.5"
         )}
       >
-        {hasAvatarSpace && (
-          showAvatar ? (
-            <Avatar className="h-8 w-8 shrink-0 rounded-full mb-1">
+        {hasAvatarSpace &&
+          (showAvatar ? (
+            <Avatar className="mb-1 h-8 w-8 shrink-0 rounded-full">
               <AvatarImage
-                src={senderMember?.avatar ?? undefined}
-                alt={senderMember?.displayName}
+                src={senderAvatar ?? undefined}
+                alt={senderDisplayName}
               />
-              <AvatarFallback className="rounded-full text-xs bg-primary/10 text-primary">
-                {senderMember?.displayName?.slice(0, 2).toUpperCase() ?? "?"}
+              <AvatarFallback className="rounded-full bg-primary/10 text-xs text-primary">
+                {senderDisplayName.slice(0, 2).toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
           ) : (
             <div className="w-8 shrink-0" />
-          )
-        )}
+          ))}
 
         {contextMenu && (
           <CustomContextMenu
@@ -620,15 +646,15 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
                       onClick={() =>
                         onViewProfile?.({
                           userId: msg.senderId,
-                          displayName: senderMember?.displayName ?? `User #${msg.senderId}`,
-                          avatar: senderMember?.avatar ?? null,
+                          displayName: senderDisplayName,
+                          avatar: senderAvatar,
                           role: senderMember?.role,
                           joinedAt: senderMember?.joinedAt,
                         })
                       }
-                      className="ml-1 text-[11px] font-semibold text-primary/80 mb-0.5 select-none text-left hover:underline outline-none cursor-pointer"
+                      className="mb-0.5 ml-1 cursor-pointer text-left text-[11px] font-semibold text-primary/80 outline-none select-none hover:underline"
                     >
-                      {senderMember?.displayName ?? `User #${msg.senderId}`}
+                      {senderDisplayName}
                     </button>
                   )}
                   {msg.isDeleted ? (
@@ -691,7 +717,12 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
                       )}
 
                       <p className="wrap-break-word whitespace-pre-wrap">
-                        {renderMessageContent(msg.content, isMine)}
+                        {renderMessageContent(
+                          msg.content,
+                          isMine,
+                          activeConversation?.members,
+                          currentDisplayName
+                        )}
                       </p>
 
                       {msg.linkPreview && (

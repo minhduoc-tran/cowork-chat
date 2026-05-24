@@ -78,6 +78,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] })
     })
 
+    // Conversation deleted (group disbanded)
+    socket.on("conversation.deleted", () => {
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    })
+
     return () => {
       disconnectSocket()
     }

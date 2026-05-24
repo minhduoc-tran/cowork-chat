@@ -10,7 +10,7 @@ interface UseChatScrollOptions {
   targetUserId: number | null
   currentUserId: number
   messages: ChatMessage[]
-  isOtherUserTyping: boolean
+  isOtherUserTyping: boolean | string
   hasNextPage: boolean
   isFetchingNextPage: boolean
   fetchNextPage: () => void
