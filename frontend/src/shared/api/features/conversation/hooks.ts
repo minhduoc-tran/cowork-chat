@@ -103,7 +103,7 @@ export function useUpdateGroup() {
       conversationApi
         .updateGroup(conversationId, { name, memberIds })
         .then((res) => res.data.data),
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] })
       void queryClient.invalidateQueries({
         queryKey: ["conversations", variables.conversationId, "messages"],

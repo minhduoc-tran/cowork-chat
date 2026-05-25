@@ -1,6 +1,7 @@
 import type { ConversationListItem } from "@/shared/api"
 
-type Translate = (key: string, opts?: Record<string, unknown>) => string
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Translate = any
 
 export function getConversationPreviewText(
   item: ConversationListItem | null,

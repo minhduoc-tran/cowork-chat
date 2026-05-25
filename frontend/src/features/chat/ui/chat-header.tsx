@@ -1,4 +1,4 @@
-import { MoreVertical, PanelRight, Phone, Search, Video } from "lucide-react"
+import { ClipboardList, MoreVertical, PanelRight, Phone, Search, Video } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { cn } from "@/shared/lib/utils"
@@ -17,6 +17,7 @@ interface ChatHeaderProps {
   isOtherUserTyping: boolean | string
   sidebarOpen: boolean
   onToggleSidebar: () => void
+  onOpenTasks: () => void
 }
 
 export function ChatHeader({
@@ -25,13 +26,14 @@ export function ChatHeader({
   isOtherUserTyping,
   sidebarOpen,
   onToggleSidebar,
+  onOpenTasks,
 }: ChatHeaderProps) {
   const { t } = useTranslation()
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 select-none">
-      <div className="flex items-center gap-3">
-        <Avatar className="h-9 w-9 rounded-full">
+      <div className="flex items-center gap-3 min-w-0">
+        <Avatar className="h-9 w-9 rounded-full shrink-0">
           <AvatarImage
             src={friend?.avatar ?? undefined}
             alt={friend?.displayName}
@@ -40,13 +42,13 @@ export function ChatHeader({
             {friend?.displayName?.slice(0, 2).toUpperCase() ?? "?"}
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <div className="truncate text-sm font-semibold">
             {friend?.displayName ?? `User #${targetUserId}`}
           </div>
           <div
             className={cn(
-              "text-xs text-muted-foreground transition-all duration-200",
+              "text-xs text-muted-foreground transition-all duration-200 truncate",
               isOtherUserTyping && "animate-pulse font-medium text-primary"
             )}
           >
@@ -85,6 +87,14 @@ export function ChatHeader({
             <Phone className="size-4.5" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={onOpenTasks}
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-all outline-none hover:bg-muted hover:text-foreground active:scale-95"
+          title={t("chat.tasks", "Công việc")}
+        >
+          <ClipboardList className="size-4.5" />
+        </button>
         <button
           type="button"
           onClick={onToggleSidebar}

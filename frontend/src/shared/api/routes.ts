@@ -33,3 +33,11 @@ export const USER_ROUTES = {
   UPDATE_PROFILE: "/api/v1/users/me",
   FIND_BY_EMAIL: "/api/v1/users/by-email",
 } as const
+
+export const TASK_ROUTES = {
+  BASE: "/api/v1/tasks",
+  DETAIL: "/api/v1/tasks/:taskId",
+  SUBTASKS: "/api/v1/tasks/:taskId/subtasks",
+  SUBTASK_DETAIL: "/api/v1/tasks/:taskId/subtasks/:subtaskId",
+} as const
+

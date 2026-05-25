@@ -4,6 +4,7 @@ import authRoutes from "./auth.routes";
 import friendRoutes from "./friend.routes";
 import conversationRoutes from "./conversation.routes";
 import userRoutes from "./user.routes";
+import taskRoutes from "./task.routes";
 
 const router = Router();
 
@@ -13,5 +14,6 @@ router.use("/auth", authRoutes);
 router.use("/friends", friendRoutes);
 router.use("/conversations", conversationRoutes);
 router.use("/users", userRoutes);
+router.use("/tasks", taskRoutes);
 
 export default router;

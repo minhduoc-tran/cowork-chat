@@ -5,8 +5,10 @@ import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import type {
+  ConversationListItem,
   ConversationMessageReplyPreview,
   ConversationPin,
+  Task,
 } from "@/shared/api"
 import { getSocket } from "@/shared/lib/socket"
 
@@ -296,6 +298,54 @@ export function useChatSocket({
       }
     }
 
+    const handleTaskCreated = (payload: Task) => {
+      const conversationIdKey = payload.conversationId ?? null
+      queryClient.setQueryData<Task[]>(["tasks", conversationIdKey], (oldTasks) => {
+        if (!oldTasks) return [payload]
+        if (oldTasks.some((t) => t.id === payload.id)) return oldTasks
+        return [payload, ...oldTasks]
+      })
+      void queryClient.invalidateQueries({ queryKey: ["tasks", conversationIdKey] })
+    }
+
+    const handleTaskUpdated = (payload: Task) => {
+      const conversationIdKey = payload.conversationId ?? null
+      
+      // Toast notification when another user completes a group task
+      if (conversationIdKey && payload.status === "completed") {
+        const cachedTasks = queryClient.getQueryData<Task[]>(["tasks", conversationIdKey])
+        const oldTask = cachedTasks?.find((t) => t.id === payload.id)
+        if (oldTask && oldTask.status !== "completed") {
+          const isOwnUpdate = currentUser && (payload.assignee?.id === currentUser.id)
+          if (!isOwnUpdate) {
+            const userName = payload.assignee?.displayName || payload.creator?.displayName || t("tasks.someone", "Một thành viên")
+            toast.success(
+              t("tasks.completedNotification", "🎉 {{userName}} đã hoàn thành: \"{{title}}\"", {
+                userName,
+                title: payload.title,
+              }),
+              { icon: "✅" }
+            )
+          }
+        }
+      }
+
+      queryClient.setQueryData<Task[]>(["tasks", conversationIdKey], (oldTasks) => {
+        if (!oldTasks) return [payload]
+        return oldTasks.map((t) => (t.id === payload.id ? payload : t))
+      })
+      void queryClient.invalidateQueries({ queryKey: ["tasks", conversationIdKey] })
+    }
+
+    const handleTaskDeleted = (payload: { taskId: number; conversationId: number | null }) => {
+      const conversationIdKey = payload.conversationId ?? null
+      queryClient.setQueryData<Task[]>(["tasks", conversationIdKey], (oldTasks) => {
+        if (!oldTasks) return []
+        return oldTasks.filter((t) => t.id !== payload.taskId)
+      })
+      void queryClient.invalidateQueries({ queryKey: ["tasks", conversationIdKey] })
+    }
+
     socket.on("message.received", handleMessage)
     socket.on("message.read", handleMessageRead)
     socket.on("message.updated", handleMessageUpdated)
@@ -303,6 +353,9 @@ export function useChatSocket({
     socket.on("pin:updated", handlePinUpdated)
     socket.on("typing.updated", handleTypingUpdated)
     socket.on("conversation.deleted", handleConversationDeleted)
+    socket.on("task.created", handleTaskCreated)
+    socket.on("task.updated", handleTaskUpdated)
+    socket.on("task.deleted", handleTaskDeleted)
 
     return () => {
       socket.off("message.received", handleMessage)
@@ -312,6 +365,9 @@ export function useChatSocket({
       socket.off("pin:updated", handlePinUpdated)
       socket.off("typing.updated", handleTypingUpdated)
       socket.off("conversation.deleted", handleConversationDeleted)
+      socket.off("task.created", handleTaskCreated)
+      socket.off("task.updated", handleTaskUpdated)
+      socket.off("task.deleted", handleTaskDeleted)
     }
   }, [
     activeConversationId,

@@ -56,6 +56,25 @@ export type {
   FriendshipItem,
   FriendUser,
 } from "./features/friend/types"
+export { taskApi } from "./features/task/api"
+export {
+  useCreateSubtask,
+  useCreateTask,
+  useDeleteSubtask,
+  useDeleteTask,
+  useInfiniteTasks,
+  useTasks,
+  useUpdateSubtask,
+  useUpdateTask,
+} from "./features/task/hooks"
+export type {
+  CreateSubtaskPayload,
+  CreateTaskPayload,
+  Task,
+  TaskSubtask,
+  UpdateSubtaskPayload,
+  UpdateTaskPayload,
+} from "./features/task/types"
 export { userApi } from "./features/user/api"
 export { useUpdateProfile } from "./features/user/hooks"
 export type { UpdateProfileInput } from "./features/user/types"
@@ -63,5 +82,7 @@ export {
   AUTH_ROUTES,
   CONVERSATION_ROUTES,
   FRIEND_ROUTES,
+  TASK_ROUTES,
   USER_ROUTES,
 } from "./routes"
+

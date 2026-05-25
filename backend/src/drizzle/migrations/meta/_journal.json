@@ -29,6 +29,13 @@
       "when": 1779456488904,
       "tag": "0003_huge_smiling_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779633792349,
+      "tag": "0004_windy_mandarin",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,12 @@ import {
 } from "@/shared/ui/alert-dialog"
 import { Button } from "@/shared/ui/button"
 import { EditGroupDialog } from "@/shared/ui/edit-group-dialog"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/shared/ui/sheet"
 import { UserProfileDialog } from "@/shared/ui/user-profile-dialog"
 
 import { useChat } from "../lib/use-chat"
@@ -27,6 +33,7 @@ import { ChatInputPanel } from "./chat-input-panel"
 import { ChatMessages } from "./chat-messages"
 import { ChatPinBanner } from "./chat-pin-banner"
 import { ChatRightSidebar } from "./chat-right-sidebar"
+import { TaskBoardView } from "./task-board-view"
 
 export function ChatView() {
   const { t } = useTranslation()
@@ -74,6 +81,8 @@ export function ChatView() {
     activeConversation,
   } = useChat()
 
+  const [tasksOpen, setTasksOpen] = React.useState(false)
+
   const [sidebarOpen, setSidebarOpen] = React.useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("chat-sidebar-open") === "true"
@@ -94,6 +103,12 @@ export function ChatView() {
   const [disbandConfirmOpen, setDisbandConfirmOpen] = React.useState(false)
   const leaveGroupMutation = useLeaveGroup()
   const disbandGroupMutation = useDisbandGroup()
+
+  // Close tasks sheet when switching conversation
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTasksOpen(false)
+  }, [targetUserId])
 
   const handleToggleSidebar = React.useCallback(() => {
     setSidebarOpen((prev) => {
@@ -150,6 +165,7 @@ export function ChatView() {
           isOtherUserTyping={isOtherUserTyping}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={handleToggleSidebar}
+          onOpenTasks={() => setTasksOpen(true)}
         />
 
         <ChatPinBanner
@@ -316,6 +332,28 @@ export function ChatView() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Sheet open={tasksOpen} onOpenChange={setTasksOpen}>
+        <SheetContent
+          side="right"
+          className="!w-full sm:!max-w-full p-0 flex flex-col h-full bg-background border-l"
+          showCloseButton={true}
+        >
+          <SheetHeader className="px-6 py-4 border-b shrink-0 flex flex-row items-center justify-between">
+            <SheetTitle className="text-base font-semibold">
+              {t("tasks.management", "Quản lý công việc")}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <TaskBoardView
+              conversationId={activeConversation?.conversation?.id ?? null}
+              isGroup={activeConversation?.conversation?.type === "group"}
+              conversationMembers={activeConversation?.members ?? []}
+              currentUserId={currentUserId}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

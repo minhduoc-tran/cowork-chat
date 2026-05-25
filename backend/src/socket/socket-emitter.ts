@@ -142,5 +142,47 @@ export const socketEmitter = {
         conversationId
       });
     });
+  },
+
+  emitTaskCreated(
+    conversationId: number | null,
+    userIds: number[],
+    payload: unknown
+  ) {
+    const io = getSocketServer();
+    if (conversationId) {
+      io.to(`conversation:${conversationId}`).emit("task.created", payload);
+    }
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("task.created", payload);
+    });
+  },
+
+  emitTaskUpdated(
+    conversationId: number | null,
+    userIds: number[],
+    payload: unknown
+  ) {
+    const io = getSocketServer();
+    if (conversationId) {
+      io.to(`conversation:${conversationId}`).emit("task.updated", payload);
+    }
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("task.updated", payload);
+    });
+  },
+
+  emitTaskDeleted(
+    conversationId: number | null,
+    userIds: number[],
+    payload: { taskId: number; conversationId: number | null }
+  ) {
+    const io = getSocketServer();
+    if (conversationId) {
+      io.to(`conversation:${conversationId}`).emit("task.deleted", payload);
+    }
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("task.deleted", payload);
+    });
   }
 };
