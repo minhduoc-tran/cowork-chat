@@ -11,12 +11,17 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core"
-import { CalendarIcon, CheckSquareIcon, PlusIcon } from "lucide-react"
+import { CalendarIcon, CheckSquareIcon, ClockIcon, PlusIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import type { Task } from "@/shared/api"
 import { cn } from "@/shared/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
+import { formatEstimate } from "@/shared/lib/time-estimate-utils"
+
+const stripHtml = (html: string) => {
+  return html.replace(/<[^>]*>/g, "")
+}
 
 // Notion card: warm cream surface, minimal border, content-first
 function TaskCardContent({ task, isDragging, isOverlay }: TaskCardContentProps) {
@@ -45,6 +50,8 @@ function TaskCardContent({ task, isDragging, isOverlay }: TaskCardContentProps) 
     low: "blue",
   }
 
+  const assignees = task.members?.filter((m) => m.role === "assignee") || []
+
   return (
     <div
       className={cn(
@@ -63,16 +70,29 @@ function TaskCardContent({ task, isDragging, isOverlay }: TaskCardContentProps) 
         </h4>
         {task.description && (
           <p className="line-clamp-2 text-xs text-[var(--notion-text-secondary)] leading-normal mt-0.5">
-            {task.description}
+            {stripHtml(task.description)}
           </p>
         )}
       </div>
 
-      {/* Priority Tag */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Priority & Tags */}
+      <div className="flex flex-wrap gap-1">
         <span className={cn("notion-tag", `notion-tag--${priorityColors[task.priority] ?? "gray"}`)}>
           {priorityLabels[task.priority] ?? priorityLabels.low}
         </span>
+        {task.tags?.map((taskTag) => (
+          <span
+            key={taskTag.tag.id}
+            className="notion-tag border"
+            style={{
+              backgroundColor: `${taskTag.tag.color}15`,
+              color: taskTag.tag.color,
+              borderColor: `${taskTag.tag.color}30`
+            }}
+          >
+            {taskTag.tag.name}
+          </span>
+        ))}
       </div>
 
       {/* Meta row */}
@@ -100,17 +120,43 @@ function TaskCardContent({ task, isDragging, isOverlay }: TaskCardContentProps) 
               <span>{completedSubtasks}/{totalSubtasks}</span>
             </div>
           )}
+          {task.estimatedValue !== null && task.estimatedValue !== undefined && (
+            <div className="flex items-center gap-1 text-[11px]" title={t("tasks.estimatedTime", "Thời gian ước tính")}>
+              <ClockIcon className="size-3" />
+              <span>{formatEstimate(task.estimatedValue, task.estimatedUnit)}</span>
+            </div>
+          )}
         </div>
 
-        {/* Assignee */}
-        {task.assignee && (
-          <Avatar className="h-5 w-5">
-            <AvatarImage src={task.assignee.avatar ?? undefined} />
-            <AvatarFallback className="text-[9px] bg-[var(--notion-muted)] text-[var(--notion-text-secondary)]">
-              {task.assignee.displayName.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        )}
+        {/* Assignees stack */}
+        <div className="notion-avatar-stack">
+          {assignees.length > 0 ? (
+            <>
+              {assignees.slice(0, 3).map((member) => (
+                <Avatar key={member.id} className="h-5 w-5 notion-avatar-stack__item" title={member.user.displayName}>
+                  <AvatarImage src={member.user.avatar ?? undefined} />
+                  <AvatarFallback className="text-[9px] bg-[var(--notion-muted)] text-[var(--notion-text-secondary)]">
+                    {member.user.displayName.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+              {assignees.length > 3 && (
+                <div className="notion-avatar-stack__overflow" title={`${assignees.length - 3} người khác`}>
+                  +{assignees.length - 3}
+                </div>
+              )}
+            </>
+          ) : (
+            task.assignee && (
+              <Avatar className="h-5 w-5" title={task.assignee.displayName}>
+                <AvatarImage src={task.assignee.avatar ?? undefined} />
+                <AvatarFallback className="text-[9px] bg-[var(--notion-muted)] text-[var(--notion-text-secondary)]">
+                  {task.assignee.displayName.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            )
+          )}
+        </div>
       </div>
     </div>
   )

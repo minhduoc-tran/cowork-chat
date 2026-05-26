@@ -16,6 +16,10 @@ import { TaskCreateModal } from "./task-create-modal"
 import { TaskDetailModal } from "./task-detail-modal"
 import { TaskTable } from "./task-table"
 
+const stripHtml = (html: string) => {
+  return html.replace(/<[^>]*>/g, "")
+}
+
 interface TaskBoardViewProps {
   conversationId: number | null
   isGroup: boolean
@@ -112,7 +116,7 @@ export function TaskBoardView({
     return tasks.filter(
       (task) =>
         task.title.toLowerCase().includes(trimmed) ||
-        (task.description && task.description.toLowerCase().includes(trimmed))
+        (task.description && stripHtml(task.description).toLowerCase().includes(trimmed))
     )
   }, [tasks, searchQuery])
 

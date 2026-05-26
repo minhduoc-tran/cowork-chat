@@ -636,3 +636,235 @@
   background: var(--notion-muted);
   border-color: var(--notion-border);
 }
+
+/* ---- Avatar Stack ---- */
+.notion-avatar-stack {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+}
+
+.notion-avatar-stack__item {
+  margin-left: -6px;
+  border: 2px solid var(--notion-card);
+  transition: transform 0.1s ease, z-index 0.1s ease;
+}
+
+.notion-avatar-stack__item:first-child {
+  margin-left: 0;
+}
+
+.notion-avatar-stack__item:hover {
+  transform: translateY(-2px);
+  z-index: 10;
+}
+
+.notion-avatar-stack__overflow {
+  margin-left: -6px;
+  border: 2px solid var(--notion-card);
+  background: var(--notion-muted);
+  color: var(--notion-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  width: 24px;
+  height: 24px;
+  z-index: 1;
+}
+
+/* ---- Member Chips & Picker ---- */
+.notion-member-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notion-member-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--notion-muted);
+  border: 1px solid var(--notion-border);
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--notion-text);
+  max-width: 150px;
+}
+
+.notion-member-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notion-member-chip__remove {
+  cursor: pointer;
+  color: var(--notion-text-tertiary);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px;
+}
+
+.notion-member-chip__remove:hover {
+  color: var(--notion-red);
+  background: rgba(235, 87, 87, 0.1);
+}
+
+.notion-member-picker {
+  position: relative;
+  display: inline-block;
+}
+
+/* ---- Time Estimate Picker ---- */
+.notion-time-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 200px;
+}
+
+.notion-time-picker__input {
+  width: 70px !important;
+  text-align: center;
+}
+
+.notion-time-picker__unit {
+  flex: 1;
+  min-width: 80px;
+  height: 36px;
+}
+
+/* ---- Notion Sidebar Properties (2-Column Grid) ---- */
+.notion-property-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.notion-property-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: flex-start;
+  min-h: 32px;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.notion-property-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--notion-text-tertiary);
+  height: 32px;
+  font-weight: 400;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.notion-property-value {
+  display: flex;
+  align-items: center;
+  min-h: 32px;
+  width: 100%;
+}
+
+/* Borderless inputs/selects for properties */
+.notion-property-select,
+.notion-property-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 6px;
+  font-size: 13px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--notion-text);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.notion-property-select:hover,
+.notion-property-input:hover {
+  background: var(--notion-muted);
+}
+
+.notion-property-select:focus,
+.notion-property-input:focus {
+  background: var(--notion-card);
+  border-color: var(--notion-border);
+}
+
+/* Hide standard dropdown arrow in Notion property select for cleaner look, but keep default chevron behavior or subtle background styling */
+.notion-property-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23787774' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 11px;
+  padding-right: 20px;
+}
+
+.dark .notion-property-select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239b9b9b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+/* ---- Rich Text Editor & Preview ---- */
+.notion-rich-text-preview ul,
+[contentEditable] ul {
+  list-style-type: disc;
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.notion-rich-text-preview ol,
+[contentEditable] ol {
+  list-style-type: decimal;
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.notion-rich-text-preview h1,
+[contentEditable] h1 {
+  font-size: 1.4em;
+  font-weight: 700;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+.notion-rich-text-preview h2,
+[contentEditable] h2 {
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.notion-rich-text-preview blockquote,
+[contentEditable] blockquote {
+  border-left: 3px solid var(--notion-border-hover);
+  padding-left: 10px;
+  color: var(--notion-text-secondary);
+  font-style: italic;
+  margin: 8px 0;
+}
+
+/* Custom placeholder styling for contentEditable & TipTap */
+[contentEditable]:empty:before,
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--notion-text-tertiary);
+  cursor: text;
+  display: block;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+

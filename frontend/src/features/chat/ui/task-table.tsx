@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import type { Task } from "@/shared/api"
 import { useDeleteTask, useInfiniteTasks } from "@/shared/api"
 import { cn } from "@/shared/lib/utils"
+import { formatEstimate } from "@/shared/lib/time-estimate-utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { buildRestQuery, useFilterContext } from "@/shared/ui/conditional-filter"
 import {
@@ -16,6 +17,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu"
+
+const stripHtml = (html: string) => {
+  return html.replace(/<[^>]*>/g, "")
+}
 
 interface TaskTableProps {
   conversationId: number | null
@@ -135,7 +140,7 @@ export function TaskTable({ conversationId, searchQuery, onSelectTask, onUpdateT
 
   return (
     <div className="h-full w-full overflow-auto p-0 select-none">
-      <div className="w-full min-w-[700px] overflow-hidden">
+      <div className="w-full min-w-[850px] overflow-hidden">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="notion-table-header">
             <tr>
@@ -144,6 +149,8 @@ export function TaskTable({ conversationId, searchQuery, onSelectTask, onUpdateT
               <th className="w-[150px]">{t("tasks.assignee", "Người thực hiện")}</th>
               <th className="w-[120px]">{colHeader("priority", t("tasks.priority", "Ưu tiên"))}</th>
               <th className="w-[130px]">{colHeader("dueDate", t("tasks.dueDate", "Hạn chót"))}</th>
+              <th className="w-[100px]">{t("tasks.estimatedTime", "Thời gian")}</th>
+              <th className="w-[150px]">{t("tasks.tags", "Nhãn")}</th>
               <th className="w-[110px]">{t("tasks.progress", "Tiến độ")}</th>
               <th className="w-[50px]" />
             </tr>
@@ -167,6 +174,8 @@ export function TaskTable({ conversationId, searchQuery, onSelectTask, onUpdateT
                 low: "var(--notion-blue)",
               }
 
+              const assignees = task.members?.filter((m) => m.role === "assignee") || []
+
               return (
                 <tr
                   key={task.id}
@@ -178,7 +187,7 @@ export function TaskTable({ conversationId, searchQuery, onSelectTask, onUpdateT
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-[var(--notion-text)] text-[13px] truncate block">{task.title}</span>
                       {task.description && (
-                        <span className="text-xs text-[var(--notion-text-secondary)] truncate block">{task.description}</span>
+                        <span className="text-xs text-[var(--notion-text-secondary)] truncate block">{stripHtml(task.description)}</span>
                       )}
                     </div>
                   </td>
@@ -207,7 +216,28 @@ export function TaskTable({ conversationId, searchQuery, onSelectTask, onUpdateT
 
                   {/* Assignee */}
                   <td>
-                    {task.assignee ? (
+                    {assignees.length > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="notion-avatar-stack">
+                          {assignees.slice(0, 3).map((member) => (
+                            <Avatar key={member.id} className="h-5 w-5 notion-avatar-stack__item" title={member.user.displayName}>
+                              <AvatarImage src={member.user.avatar ?? undefined} />
+                              <AvatarFallback className="text-[9px] font-semibold bg-[var(--notion-muted)] text-[var(--notion-text-secondary)]">
+                                {member.user.displayName.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          ))}
+                          {assignees.length > 3 && (
+                            <div className="notion-avatar-stack__overflow" title={`${assignees.length - 3} người khác`}>
+                              +{assignees.length - 3}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs font-medium text-[var(--notion-text)] truncate max-w-[100px]" title={assignees.map(m => m.user.displayName).join(", ")}>
+                          {assignees.map(m => m.user.displayName).join(", ")}
+                        </span>
+                      </div>
+                    ) : task.assignee ? (
                       <div className="flex items-center gap-2">
                         <Avatar className="h-5 w-5 shadow-xs ring-1 ring-[var(--notion-border)]">
                           <AvatarImage src={task.assignee.avatar ?? undefined} />
@@ -250,6 +280,39 @@ export function TaskTable({ conversationId, searchQuery, onSelectTask, onUpdateT
                     ) : (
                       <span className="text-xs text-[var(--notion-text-tertiary)]">—</span>
                     )}
+                  </td>
+
+                  {/* Estimated Time */}
+                  <td>
+                    {task.estimatedValue !== null && task.estimatedValue !== undefined ? (
+                      <span className="text-xs font-medium text-[var(--notion-text-secondary)]">
+                        {formatEstimate(task.estimatedValue, task.estimatedUnit)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[var(--notion-text-tertiary)]">—</span>
+                    )}
+                  </td>
+
+                  {/* Tags */}
+                  <td>
+                    <div className="flex flex-wrap gap-1 max-w-[140px]">
+                      {task.tags?.map((taskTag) => (
+                        <span
+                          key={taskTag.tag.id}
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                          style={{
+                            backgroundColor: `${taskTag.tag.color}15`,
+                            color: taskTag.tag.color,
+                            border: `1px solid ${taskTag.tag.color}30`
+                          }}
+                        >
+                          {taskTag.tag.name}
+                        </span>
+                      ))}
+                      {(!task.tags || task.tags.length === 0) && (
+                        <span className="text-xs text-[var(--notion-text-tertiary)]">—</span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Progress */}
@@ -295,7 +358,7 @@ export function TaskTable({ conversationId, searchQuery, onSelectTask, onUpdateT
             {/* Infinite scroll sentinel */}
             {hasNextPage && (
               <tr>
-                <td colSpan={7} className="p-0 border-none">
+                <td colSpan={9} className="p-0 border-none">
                   <div ref={observerTarget} className="w-full flex items-center justify-center py-4">
                     <Loader2Icon className="size-4 animate-spin text-[var(--notion-text-tertiary)]" />
                   </div>

@@ -66,6 +66,14 @@ export {
   useTasks,
   useUpdateSubtask,
   useUpdateTask,
+  useAddTaskMember,
+  useRemoveTaskMember,
+  useUpdateTaskMemberRole,
+  useConversationTags,
+  useCreateConversationTag,
+  useDeleteConversationTag,
+  useAddTagToTask,
+  useRemoveTagFromTask,
 } from "./features/task/hooks"
 export type {
   CreateSubtaskPayload,
@@ -74,6 +82,9 @@ export type {
   TaskSubtask,
   UpdateSubtaskPayload,
   UpdateTaskPayload,
+  TaskMember,
+  ConversationTag,
+  TaskTag,
 } from "./features/task/types"
 export { userApi } from "./features/user/api"
 export { useUpdateProfile } from "./features/user/hooks"

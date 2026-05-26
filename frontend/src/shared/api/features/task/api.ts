@@ -8,6 +8,9 @@ import type {
   Task,
   UpdateSubtaskPayload,
   UpdateTaskPayload,
+  TaskMember,
+  ConversationTag,
+  TaskTag,
 } from "./types"
 
 export const taskApi = {
@@ -68,4 +71,30 @@ export const taskApi = {
         String(subtaskId)
       )
     ),
+
+  // Member Management API
+  addTaskMember: (taskId: number, userId: number, role: "owner" | "assignee" | "watcher") =>
+    apiClient.post<ApiResponse<TaskMember>>(`/api/v1/tasks/${taskId}/members`, { userId, role }),
+
+  removeTaskMember: (taskId: number, userId: number) =>
+    apiClient.delete<ApiResponse<{ success: boolean }>>(`/api/v1/tasks/${taskId}/members/${userId}`),
+
+  updateTaskMemberRole: (taskId: number, userId: number, role: "assignee" | "watcher") =>
+    apiClient.patch<ApiResponse<TaskMember>>(`/api/v1/tasks/${taskId}/members/${userId}`, { role }),
+
+  // Tag Management API
+  createConversationTag: (conversationId: number, data: { name: string; color: string; icon?: string }) =>
+    apiClient.post<ApiResponse<ConversationTag>>(`/api/v1/conversations/${conversationId}/tags`, data),
+
+  listConversationTags: (conversationId: number) =>
+    apiClient.get<ApiResponse<ConversationTag[]>>(`/api/v1/conversations/${conversationId}/tags`),
+
+  deleteConversationTag: (conversationId: number, tagId: number) =>
+    apiClient.delete<ApiResponse<{ success: boolean }>>(`/api/v1/conversations/${conversationId}/tags/${tagId}`),
+
+  addTagToTask: (taskId: number, tagId: number) =>
+    apiClient.post<ApiResponse<TaskTag>>(`/api/v1/tasks/${taskId}/tags`, { tagId }),
+
+  removeTagFromTask: (taskId: number, tagId: number) =>
+    apiClient.delete<ApiResponse<{ success: boolean }>>(`/api/v1/tasks/${taskId}/tags/${tagId}`),
 }

@@ -27,7 +27,48 @@ export const conversationsRelations = relations(
   ({ many }) => ({
     members: many(conversationMembersTable),
     messages: many(messagesTable),
-    pins: many(conversationPinsTable)
+    pins: many(conversationPinsTable),
+    tags: many(conversationTagsTable)
+  })
+);
+
+export const conversationTagsTable = pgTable(
+  "conversation_tags",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversationsTable.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 50 }).notNull(),
+    color: varchar("color", { length: 7 }).notNull(), // hex color e.g., #FF5733
+    icon: varchar("icon", { length: 50 }), // emoji or icon identifier
+    createdById: integer("created_by_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+  },
+  table => [
+    index("conversation_tags_conversation_idx").on(table.conversationId),
+    unique("conversation_tags_conv_name_uidx").on(
+      table.conversationId,
+      table.name
+    )
+  ]
+);
+
+export const conversationTagsRelations = relations(
+  conversationTagsTable,
+  ({ one }) => ({
+    conversation: one(conversationsTable, {
+      fields: [conversationTagsTable.conversationId],
+      references: [conversationsTable.id]
+    }),
+    creator: one(usersTable, {
+      fields: [conversationTagsTable.createdById],
+      references: [usersTable.id]
+    })
   })
 );
 
@@ -129,3 +170,5 @@ export type NewConversationMember =
   typeof conversationMembersTable.$inferInsert;
 export type ConversationPin = typeof conversationPinsTable.$inferSelect;
 export type NewConversationPin = typeof conversationPinsTable.$inferInsert;
+export type ConversationTag = typeof conversationTagsTable.$inferSelect;
+export type NewConversationTag = typeof conversationTagsTable.$inferInsert;

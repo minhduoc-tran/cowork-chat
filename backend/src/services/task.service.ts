@@ -1,5 +1,11 @@
 import { db } from "../drizzle";
-import { tasksTable, taskSubtasksTable } from "../drizzle/schemas/task.schema";
+import {
+  tasksTable,
+  taskSubtasksTable,
+  taskMembersTable,
+  taskTagsTable
+} from "../drizzle/schemas/task.schema";
+import { conversationTagsTable } from "../drizzle/schemas/conversation.schema";
 import {
   eq,
   ne,
@@ -12,7 +18,8 @@ import {
   isNotNull,
   or,
   ilike,
-  SQL
+  SQL,
+  sql
 } from "drizzle-orm";
 import { ApiError } from "../utils/api-error";
 import { conversationService } from "./conversation.service";
@@ -26,6 +33,44 @@ async function getRecipientUserIds(
     return [fallbackUserId];
   }
   return conversationService.listActiveConversationMemberIds(conversationId);
+}
+
+// Permission Helper Functions
+async function getTaskMemberRole(taskId: number, userId: number): Promise<"owner" | "assignee" | "watcher" | null> {
+  const member = await db.query.taskMembersTable.findFirst({
+    where: and(
+      eq(taskMembersTable.taskId, taskId),
+      eq(taskMembersTable.userId, userId)
+    )
+  });
+  const role = member?.role;
+  if (role === "owner" || role === "assignee" || role === "watcher") {
+    return role;
+  }
+  return null;
+}
+
+async function checkTaskPermission(
+  taskId: number,
+  userId: number,
+  requiredRole: "owner" | "assignee" | "watcher"
+): Promise<boolean> {
+  const role = await getTaskMemberRole(taskId, userId);
+  if (!role) return false;
+
+  const roleOrder = { owner: 3, assignee: 2, watcher: 1 };
+  return roleOrder[role] >= roleOrder[requiredRole];
+}
+
+async function requireTaskPermission(
+  taskId: number,
+  userId: number,
+  requiredRole: "owner" | "assignee" | "watcher"
+): Promise<void> {
+  const hasPermission = await checkTaskPermission(taskId, userId, requiredRole);
+  if (!hasPermission) {
+    throw ApiError.forbidden("You do not have permission for this action");
+  }
 }
 
 async function getTaskWithRelations(taskId: number) {
@@ -45,6 +90,18 @@ async function getTaskWithRelations(taskId: number) {
           id: true,
           displayName: true,
           avatar: true
+        }
+      },
+      members: {
+        with: {
+          user: {
+            columns: { id: true, displayName: true, avatar: true }
+          }
+        }
+      },
+      tags: {
+        with: {
+          tag: true
         }
       }
     }
@@ -129,12 +186,10 @@ function buildFilters(queryParams: Record<string, any>) {
     if (queryParams[`${fieldName}__range`] !== undefined) {
       const parts = String(queryParams[`${fieldName}__range`]).split(",");
       if (parts.length === 2) {
-        conditions.push(
-          and(
-            gte(tableColumn, isNumeric ? Number(parts[0]) : parts[0]),
-            lte(tableColumn, isNumeric ? Number(parts[1]) : parts[1])
-          )
-        );
+        const low = isNumeric ? Number(parts[0]) : parts[0];
+        const high = isNumeric ? Number(parts[1]) : parts[1];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        conditions.push(sql`${tableColumn} >= ${low} AND ${tableColumn} <= ${high}` as any);
       }
     }
   };
@@ -207,6 +262,18 @@ async function listTasks(input: {
             displayName: true,
             avatar: true
           }
+        },
+        members: {
+          with: {
+            user: {
+              columns: { id: true, displayName: true, avatar: true }
+            }
+          }
+        },
+        tags: {
+          with: {
+            tag: true
+          }
         }
       }
     });
@@ -254,6 +321,18 @@ async function listTasks(input: {
             displayName: true,
             avatar: true
           }
+        },
+        members: {
+          with: {
+            user: {
+              columns: { id: true, displayName: true, avatar: true }
+            }
+          }
+        },
+        tags: {
+          with: {
+            tag: true
+          }
         }
       }
     });
@@ -268,6 +347,8 @@ async function createTask(input: {
   priority?: string;
   createdById: number;
   assignedToId?: number;
+  estimatedValue?: number;
+  estimatedUnit?: "minutes" | "hours" | "days";
 }) {
   if (input.conversationId) {
     await conversationService.ensureActiveConversationMember(
@@ -285,9 +366,27 @@ async function createTask(input: {
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
       priority: input.priority || "medium",
       createdById: input.createdById,
-      assignedToId: input.assignedToId ?? null
+      assignedToId: input.assignedToId ?? null,
+      estimatedValue: input.estimatedValue ?? null,
+      estimatedUnit: input.estimatedUnit ?? null
     })
     .returning();
+
+  // Add creator as owner member
+  await db.insert(taskMembersTable).values({
+    taskId: inserted.id,
+    userId: input.createdById,
+    role: "owner"
+  });
+
+  // If assignedToId is specified and differs from the creator, also add as assignee
+  if (input.assignedToId && input.assignedToId !== input.createdById) {
+    await db.insert(taskMembersTable).values({
+      taskId: inserted.id,
+      userId: input.assignedToId,
+      role: "assignee"
+    });
+  }
 
   const task = await getTaskWithRelations(inserted.id);
   if (!task) {
@@ -313,6 +412,8 @@ async function updateTask(
     priority: string;
     dueDate: string | null;
     assignedToId: number | null;
+    estimatedValue: number | null;
+    estimatedUnit: "minutes" | "hours" | "days" | null;
   }>
 ) {
   const task = await db.query.tasksTable.findFirst({
@@ -328,6 +429,22 @@ async function updateTask(
       task.conversationId,
       userId
     );
+
+    const isCriticalFieldUpdate =
+      data.title !== undefined ||
+      data.description !== undefined ||
+      data.priority !== undefined ||
+      data.dueDate !== undefined ||
+      data.assignedToId !== undefined;
+
+    const isStatusUpdate = data.status !== undefined;
+    const isEstimateUpdate = data.estimatedValue !== undefined || data.estimatedUnit !== undefined;
+
+    if (isCriticalFieldUpdate) {
+      await requireTaskPermission(taskId, userId, "owner");
+    } else if (isStatusUpdate || isEstimateUpdate) {
+      await requireTaskPermission(taskId, userId, "assignee");
+    }
   } else {
     if (task.createdById !== userId && task.assignedToId !== userId) {
       throw ApiError.forbidden(
@@ -348,6 +465,10 @@ async function updateTask(
     updateFields.dueDate = data.dueDate ? new Date(data.dueDate) : null;
   if (data.assignedToId !== undefined)
     updateFields.assignedToId = data.assignedToId;
+  if (data.estimatedValue !== undefined)
+    updateFields.estimatedValue = data.estimatedValue;
+  if (data.estimatedUnit !== undefined)
+    updateFields.estimatedUnit = data.estimatedUnit;
 
   await db
     .update(tasksTable)
@@ -386,6 +507,7 @@ async function deleteTask(taskId: number, userId: number) {
       task.conversationId,
       userId
     );
+    await requireTaskPermission(taskId, userId, "owner");
   } else {
     if (task.createdById !== userId) {
       throw ApiError.forbidden("Only the creator can delete this task");
@@ -421,6 +543,7 @@ async function createSubtask(taskId: number, userId: number, title: string) {
       task.conversationId,
       userId
     );
+    await requireTaskPermission(taskId, userId, "assignee");
   } else {
     if (task.createdById !== userId && task.assignedToId !== userId) {
       throw ApiError.forbidden("You do not have permission to add subtasks");
@@ -473,6 +596,9 @@ async function updateSubtask(
       task.conversationId,
       userId
     );
+    if (data.title !== undefined) {
+      await requireTaskPermission(taskId, userId, "owner");
+    }
   } else {
     if (task.createdById !== userId && task.assignedToId !== userId) {
       throw ApiError.forbidden("You do not have permission to edit subtasks");
@@ -538,6 +664,7 @@ async function deleteSubtask(
       task.conversationId,
       userId
     );
+    await requireTaskPermission(taskId, userId, "owner");
   } else {
     if (task.createdById !== userId && task.assignedToId !== userId) {
       throw ApiError.forbidden("You do not have permission to delete subtasks");
@@ -575,6 +702,270 @@ async function deleteSubtask(
   return updatedTask;
 }
 
+// Member Management Functions
+async function addTaskMember(
+  taskId: number,
+  userId: number,
+  role: "owner" | "assignee" | "watcher",
+  requestingUserId: number
+) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  if (task.conversationId) {
+    await conversationService.ensureActiveConversationMember(task.conversationId, userId);
+    await requireTaskPermission(taskId, requestingUserId, "owner");
+  }
+
+  const existing = await db.query.taskMembersTable.findFirst({
+    where: and(
+      eq(taskMembersTable.taskId, taskId),
+      eq(taskMembersTable.userId, userId)
+    )
+  });
+  if (existing) throw ApiError.conflict("User is already a member");
+
+  const [member] = await db
+    .insert(taskMembersTable)
+    .values({ taskId, userId, role })
+    .returning();
+
+  if (role === "assignee") {
+    await db
+      .update(tasksTable)
+      .set({ assignedToId: userId })
+      .where(eq(tasksTable.id, taskId));
+  }
+
+  return member;
+}
+
+async function removeTaskMember(taskId: number, memberUserId: number, requestingUserId: number) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  if (task.conversationId) {
+    await conversationService.ensureActiveConversationMember(task.conversationId, requestingUserId);
+    await requireTaskPermission(taskId, requestingUserId, "owner");
+  }
+
+  const member = await db.query.taskMembersTable.findFirst({
+    where: and(
+      eq(taskMembersTable.taskId, taskId),
+      eq(taskMembersTable.userId, memberUserId)
+    )
+  });
+  if (!member) throw ApiError.notFound("Member not found");
+
+  if (member.role === "owner") {
+    throw ApiError.badRequest("Cannot remove the task owner");
+  }
+
+  await db.delete(taskMembersTable).where(eq(taskMembersTable.id, member.id));
+
+  if (member.role === "assignee") {
+    const nextAssignee = await db.query.taskMembersTable.findFirst({
+      where: and(
+        eq(taskMembersTable.taskId, taskId),
+        eq(taskMembersTable.role, "assignee")
+      )
+    });
+    await db
+      .update(tasksTable)
+      .set({ assignedToId: nextAssignee ? nextAssignee.userId : null })
+      .where(eq(tasksTable.id, taskId));
+  }
+
+  return { success: true };
+}
+
+async function listTaskMembers(taskId: number) {
+  return db.query.taskMembersTable.findMany({
+    where: eq(taskMembersTable.taskId, taskId),
+    with: {
+      user: {
+        columns: { id: true, displayName: true, avatar: true }
+      }
+    }
+  });
+}
+
+async function updateTaskMemberRole(
+  taskId: number,
+  memberUserId: number,
+  newRole: "assignee" | "watcher",
+  requestingUserId: number
+) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  if (task.conversationId) {
+    await conversationService.ensureActiveConversationMember(task.conversationId, requestingUserId);
+    await requireTaskPermission(taskId, requestingUserId, "owner");
+  }
+
+  const member = await db.query.taskMembersTable.findFirst({
+    where: and(
+      eq(taskMembersTable.taskId, taskId),
+      eq(taskMembersTable.userId, memberUserId)
+    )
+  });
+  if (!member) throw ApiError.notFound("Member not found");
+  if (member.role === "owner") {
+    throw ApiError.badRequest("Cannot change owner role");
+  }
+
+  const oldRole = member.role;
+
+  await db
+    .update(taskMembersTable)
+    .set({ role: newRole })
+    .where(eq(taskMembersTable.id, member.id));
+
+  if (newRole === "assignee") {
+    await db
+      .update(tasksTable)
+      .set({ assignedToId: memberUserId })
+      .where(eq(tasksTable.id, taskId));
+  } else if (oldRole === "assignee" && newRole === "watcher") {
+    const nextAssignee = await db.query.taskMembersTable.findFirst({
+      where: and(
+        eq(taskMembersTable.taskId, taskId),
+        eq(taskMembersTable.role, "assignee"),
+        ne(taskMembersTable.userId, memberUserId)
+      )
+    });
+    await db
+      .update(tasksTable)
+      .set({ assignedToId: nextAssignee ? nextAssignee.userId : null })
+      .where(eq(tasksTable.id, taskId));
+  }
+
+  return db.query.taskMembersTable.findFirst({
+    where: eq(taskMembersTable.id, member.id),
+    with: { user: { columns: { id: true, displayName: true, avatar: true } } }
+  });
+}
+
+// Tag Management Functions
+async function createConversationTag(
+  conversationId: number,
+  userId: number,
+  data: { name: string; color: string; icon?: string }
+) {
+  await conversationService.ensureActiveConversationMember(conversationId, userId);
+
+  const existing = await db.query.conversationTagsTable.findFirst({
+    where: and(
+      eq(conversationTagsTable.conversationId, conversationId),
+      ilike(conversationTagsTable.name, data.name)
+    )
+  });
+  if (existing) throw ApiError.conflict("Tag name already exists in this conversation");
+
+  const [tag] = await db
+    .insert(conversationTagsTable)
+    .values({
+      conversationId,
+      name: data.name,
+      color: data.color,
+      icon: data.icon,
+      createdById: userId
+    })
+    .returning();
+  return tag;
+}
+
+async function listConversationTags(conversationId: number) {
+  return db.query.conversationTagsTable.findMany({
+    where: eq(conversationTagsTable.conversationId, conversationId)
+  });
+}
+
+async function deleteConversationTag(tagId: number, userId: number) {
+  const tag = await db.query.conversationTagsTable.findFirst({
+    where: eq(conversationTagsTable.id, tagId)
+  });
+  if (!tag) throw ApiError.notFound("Tag not found");
+
+  await conversationService.ensureActiveConversationMember(tag.conversationId, userId);
+
+  await db.delete(conversationTagsTable).where(eq(conversationTagsTable.id, tagId));
+  return { success: true };
+}
+
+async function addTagToTask(taskId: number, tagId: number, userId: number) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  if (task.conversationId) {
+    await conversationService.ensureActiveConversationMember(task.conversationId, userId);
+    await requireTaskPermission(taskId, userId, "assignee");
+  }
+
+  const tag = await db.query.conversationTagsTable.findFirst({
+    where: eq(conversationTagsTable.id, tagId)
+  });
+  if (!tag) throw ApiError.notFound("Tag not found");
+  if (tag.conversationId !== task.conversationId) {
+    throw ApiError.badRequest("Tag does not belong to this conversation");
+  }
+
+  const existing = await db.query.taskTagsTable.findFirst({
+    where: and(
+      eq(taskTagsTable.taskId, taskId),
+      eq(taskTagsTable.tagId, tagId)
+    )
+  });
+  if (existing) throw ApiError.conflict("Tag already assigned to task");
+
+  const [taskTag] = await db
+    .insert(taskTagsTable)
+    .values({ taskId, tagId })
+    .returning();
+  return taskTag;
+}
+
+async function removeTagFromTask(taskId: number, tagId: number, userId: number) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  if (task.conversationId) {
+    await conversationService.ensureActiveConversationMember(task.conversationId, userId);
+    await requireTaskPermission(taskId, userId, "assignee");
+  }
+
+  const taskTag = await db.query.taskTagsTable.findFirst({
+    where: and(
+      eq(taskTagsTable.taskId, taskId),
+      eq(taskTagsTable.tagId, tagId)
+    )
+  });
+  if (!taskTag) throw ApiError.notFound("Tag not assigned to this task");
+
+  await db.delete(taskTagsTable).where(eq(taskTagsTable.id, taskTag.id));
+  return { success: true };
+}
+
+async function listTaskTags(taskId: number) {
+  return db.query.taskTagsTable.findMany({
+    where: eq(taskTagsTable.taskId, taskId),
+    with: {
+      tag: true
+    }
+  });
+}
+
 export const taskService = {
   listTasks,
   createTask,
@@ -582,5 +973,17 @@ export const taskService = {
   deleteTask,
   createSubtask,
   updateSubtask,
-  deleteSubtask
+  deleteSubtask,
+  // Member management
+  addTaskMember,
+  removeTaskMember,
+  listTaskMembers,
+  updateTaskMemberRole,
+  // Tag management
+  createConversationTag,
+  listConversationTags,
+  deleteConversationTag,
+  addTagToTask,
+  removeTagFromTask,
+  listTaskTags
 };

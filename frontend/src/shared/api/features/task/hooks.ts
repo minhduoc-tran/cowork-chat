@@ -143,3 +143,110 @@ export function useDeleteSubtask() {
     },
   })
 }
+
+// Member Management Hooks
+export function useAddTaskMember() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, userId, role }: { taskId: number; userId: number; role: "owner" | "assignee" | "watcher" }) =>
+      taskApi.addTaskMember(taskId, userId, role).then((res) => res.data.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+      })
+    },
+  })
+}
+
+export function useRemoveTaskMember() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, userId }: { taskId: number; userId: number }) =>
+      taskApi.removeTaskMember(taskId, userId).then((res) => res.data.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+      })
+    },
+  })
+}
+
+export function useUpdateTaskMemberRole() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, userId, role }: { taskId: number; userId: number; role: "assignee" | "watcher" }) =>
+      taskApi.updateTaskMemberRole(taskId, userId, role).then((res) => res.data.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+      })
+    },
+  })
+}
+
+// Tag Management Hooks
+export function useConversationTags(conversationId?: number | null) {
+  return useQuery({
+    queryKey: ["conversation_tags", conversationId ?? null],
+    queryFn: () =>
+      conversationId
+        ? taskApi.listConversationTags(conversationId).then((res) => res.data.data ?? [])
+        : Promise.resolve([]),
+    enabled: !!conversationId,
+  })
+}
+
+export function useCreateConversationTag() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ conversationId, data }: { conversationId: number; data: { name: string; color: string; icon?: string } }) =>
+      taskApi.createConversationTag(conversationId, data).then((res) => res.data.data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["conversation_tags", data.conversationId],
+      })
+    },
+  })
+}
+
+export function useDeleteConversationTag() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ conversationId, tagId }: { conversationId: number; tagId: number }) =>
+      taskApi.deleteConversationTag(conversationId, tagId).then((res) => res.data.data),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["conversation_tags", variables.conversationId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks", variables.conversationId],
+      })
+    },
+  })
+}
+
+export function useAddTagToTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, tagId }: { taskId: number; tagId: number }) =>
+      taskApi.addTagToTask(taskId, tagId).then((res) => res.data.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+      })
+    },
+  })
+}
+
+export function useRemoveTagFromTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, tagId }: { taskId: number; tagId: number }) =>
+      taskApi.removeTagFromTask(taskId, tagId).then((res) => res.data.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+      })
+    },
+  })
+}

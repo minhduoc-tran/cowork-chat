@@ -3,6 +3,7 @@ import { ApiError } from "../utils/api-error";
 import { ApiResponse } from "../utils/api-response";
 import { conversationService } from "../services/conversation.service";
 import { messageService } from "../services/message.service";
+import { taskService } from "../services/task.service";
 
 async function createGroup(req: Request, res: Response, next: NextFunction) {
   try {
@@ -338,6 +339,72 @@ async function disbandGroup(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+// Tag Controllers
+async function createTag(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+    if (isNaN(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+    if (!name) throw ApiError.badRequest("Tag name is required");
+
+    const color = typeof req.body.color === "string" ? req.body.color : "#808080";
+    const icon = typeof req.body.icon === "string" ? req.body.icon : undefined;
+
+    const result = await taskService.createConversationTag(
+      conversationId,
+      req.user.id,
+      { name, color, icon }
+    );
+
+    return ApiResponse.created(res, "Tag created successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listConversationTags(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const conversationId = Number(req.params.conversationId);
+    if (isNaN(conversationId) || conversationId < 1) {
+      throw ApiError.badRequest("Invalid conversation ID");
+    }
+
+    const result = await taskService.listConversationTags(conversationId);
+    return ApiResponse.ok(res, "Tags fetched successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deleteConversationTag(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const tagId = Number(req.params.tagId);
+    if (isNaN(tagId) || tagId < 1) {
+      throw ApiError.badRequest("Invalid tag ID");
+    }
+
+    await taskService.deleteConversationTag(tagId, req.user.id);
+    return ApiResponse.ok(res, "Tag deleted successfully", null);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export const conversationController = {
   createGroup,
   listConversations,
@@ -350,5 +417,9 @@ export const conversationController = {
   toggleMessageReaction,
   leaveGroup,
   updateGroup,
-  disbandGroup
+  disbandGroup,
+  // Tag management
+  createTag,
+  listConversationTags,
+  deleteConversationTag
 };

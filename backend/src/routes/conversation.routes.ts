@@ -30,4 +30,9 @@ router.post(
   conversationController.toggleMessageReaction
 );
 
+// Tag routes
+router.post("/:conversationId/tags", conversationController.createTag);
+router.get("/:conversationId/tags", conversationController.listConversationTags);
+router.delete("/:conversationId/tags/:tagId", conversationController.deleteConversationTag);
+
 export default router;

@@ -83,6 +83,14 @@ async function createTask(req: Request, res: Response, next: NextFunction) {
     const assignedToId = req.body.assignedToId
       ? Number(req.body.assignedToId)
       : undefined;
+    const estimatedValue =
+      typeof req.body.estimatedValue === "number"
+        ? req.body.estimatedValue
+        : undefined;
+    const estimatedUnit =
+      ["minutes", "hours", "days"].includes(req.body.estimatedUnit)
+        ? req.body.estimatedUnit
+        : undefined;
 
     const result = await taskService.createTask({
       title,
@@ -91,7 +99,9 @@ async function createTask(req: Request, res: Response, next: NextFunction) {
       dueDate,
       priority,
       createdById: req.user.id,
-      assignedToId
+      assignedToId,
+      estimatedValue,
+      estimatedUnit
     });
 
     return ApiResponse.created(res, "Task created successfully", result);
@@ -135,6 +145,14 @@ async function updateTask(req: Request, res: Response, next: NextFunction) {
           ? null
           : Number(req.body.assignedToId)
         : undefined;
+    const estimatedValue =
+      typeof req.body.estimatedValue === "number" || req.body.estimatedValue === null
+        ? req.body.estimatedValue
+        : undefined;
+    const estimatedUnit =
+      ["minutes", "hours", "days", null].includes(req.body.estimatedUnit)
+        ? req.body.estimatedUnit
+        : undefined;
 
     const result = await taskService.updateTask(taskId, req.user.id, {
       title,
@@ -142,7 +160,9 @@ async function updateTask(req: Request, res: Response, next: NextFunction) {
       status,
       priority,
       dueDate,
-      assignedToId
+      assignedToId,
+      estimatedValue,
+      estimatedUnit
     });
 
     return ApiResponse.ok(res, "Task updated successfully", result);
@@ -259,6 +279,139 @@ async function deleteSubtask(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+// Member Controllers
+async function addTaskMember(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    if (isNaN(taskId) || taskId < 1) {
+      throw ApiError.badRequest("Invalid task ID");
+    }
+
+    const userId = req.body.userId ? Number(req.body.userId) : undefined;
+    if (!userId) throw ApiError.badRequest("User ID is required");
+
+    const role = req.body.role;
+    if (!["owner", "assignee", "watcher"].includes(role)) {
+      throw ApiError.badRequest("Invalid role");
+    }
+
+    const result = await taskService.addTaskMember(taskId, userId, role, req.user.id);
+    return ApiResponse.created(res, "Member added successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listTaskMembers(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    if (isNaN(taskId) || taskId < 1) {
+      throw ApiError.badRequest("Invalid task ID");
+    }
+
+    const result = await taskService.listTaskMembers(taskId);
+    return ApiResponse.ok(res, "Members fetched successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateTaskMemberRole(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    const userId = Number(req.params.userId);
+    if (isNaN(taskId) || isNaN(userId) || taskId < 1 || userId < 1) {
+      throw ApiError.badRequest("Invalid parameters");
+    }
+
+    const role = req.body.role;
+    if (!["assignee", "watcher"].includes(role)) {
+      throw ApiError.badRequest("Role must be 'assignee' or 'watcher'");
+    }
+
+    const result = await taskService.updateTaskMemberRole(taskId, userId, role, req.user.id);
+    return ApiResponse.ok(res, "Member role updated", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function removeTaskMember(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    const userId = Number(req.params.userId);
+    if (isNaN(taskId) || isNaN(userId) || taskId < 1 || userId < 1) {
+      throw ApiError.badRequest("Invalid parameters");
+    }
+
+    await taskService.removeTaskMember(taskId, userId, req.user.id);
+    return ApiResponse.ok(res, "Member removed successfully", null);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// Tag Association Controllers
+async function addTagToTask(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    if (isNaN(taskId) || taskId < 1) {
+      throw ApiError.badRequest("Invalid task ID");
+    }
+
+    const tagId = req.body.tagId ? Number(req.body.tagId) : undefined;
+    if (!tagId) throw ApiError.badRequest("Tag ID is required");
+
+    const result = await taskService.addTagToTask(taskId, tagId, req.user.id);
+    return ApiResponse.created(res, "Tag added to task", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listTaskTags(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    if (isNaN(taskId) || taskId < 1) {
+      throw ApiError.badRequest("Invalid task ID");
+    }
+
+    const result = await taskService.listTaskTags(taskId);
+    return ApiResponse.ok(res, "Task tags fetched successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function removeTagFromTask(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    const tagId = Number(req.params.tagId);
+    if (isNaN(taskId) || isNaN(tagId) || taskId < 1 || tagId < 1) {
+      throw ApiError.badRequest("Invalid parameters");
+    }
+
+    await taskService.removeTagFromTask(taskId, tagId, req.user.id);
+    return ApiResponse.ok(res, "Tag removed from task", null);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export const taskController = {
   listTasks,
   createTask,
@@ -266,5 +419,14 @@ export const taskController = {
   deleteTask,
   createSubtask,
   updateSubtask,
-  deleteSubtask
+  deleteSubtask,
+  // Member management
+  addTaskMember,
+  listTaskMembers,
+  updateTaskMemberRole,
+  removeTaskMember,
+  // Tag associations
+  addTagToTask,
+  listTaskTags,
+  removeTagFromTask
 };

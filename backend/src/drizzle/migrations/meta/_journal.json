@@ -36,6 +36,41 @@
       "when": 1779633792349,
       "tag": "0004_windy_mandarin",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779719882609,
+      "tag": "0005_flashy_loki",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1748281464000,
+      "tag": "0006_replace_estimated_hours",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779800222137,
+      "tag": "0007_vengeful_captain_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779802099728,
+      "tag": "0008_fast_sprite",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779802462478,
+      "tag": "0009_ambitious_harry_osborn",
+      "breakpoints": true
     }
   ]
 }

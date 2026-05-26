@@ -5,11 +5,16 @@ import {
   timestamp,
   text,
   boolean,
-  index
+  index,
+  real,
+  unique
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { usersTable } from "./user.schema";
-import { conversationsTable } from "./conversation.schema";
+import {
+  conversationsTable,
+  conversationTagsTable
+} from "./conversation.schema";
 
 export const tasksTable = pgTable(
   "tasks",
@@ -30,6 +35,8 @@ export const tasksTable = pgTable(
     assignedToId: integer("assigned_to_id").references(() => usersTable.id, {
       onDelete: "set null"
     }),
+    estimatedValue: integer("estimated_value"),
+    estimatedUnit: varchar("estimated_unit", { length: 20 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -79,7 +86,9 @@ export const tasksRelations = relations(tasksTable, ({ one, many }) => ({
     references: [usersTable.id],
     relationName: "task_assignee"
   }),
-  subtasks: many(taskSubtasksTable)
+  subtasks: many(taskSubtasksTable),
+  members: many(taskMembersTable),
+  tags: many(taskTagsTable)
 }));
 
 export const taskSubtasksRelations = relations(
@@ -92,7 +101,76 @@ export const taskSubtasksRelations = relations(
   })
 );
 
+export const taskMembersTable = pgTable(
+  "task_members",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => tasksTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    role: varchar("role", { length: 20 }).notNull(), // owner, assignee, watcher
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+  },
+  table => [
+    index("task_members_task_idx").on(table.taskId),
+    index("task_members_user_idx").on(table.userId),
+    unique("task_members_task_user_uidx").on(table.taskId, table.userId)
+  ]
+);
+
+export const taskTagsTable = pgTable(
+  "task_tags",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => tasksTable.id, { onDelete: "cascade" }),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => conversationTagsTable.id, { onDelete: "cascade" }),
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+  },
+  table => [
+    index("task_tags_task_idx").on(table.taskId),
+    index("task_tags_tag_idx").on(table.tagId),
+    unique("task_tags_task_tag_uidx").on(table.taskId, table.tagId)
+  ]
+);
+
+export const taskMembersRelations = relations(taskMembersTable, ({ one }) => ({
+  task: one(tasksTable, {
+    fields: [taskMembersTable.taskId],
+    references: [tasksTable.id]
+  }),
+  user: one(usersTable, {
+    fields: [taskMembersTable.userId],
+    references: [usersTable.id]
+  })
+}));
+
+export const taskTagsRelations = relations(taskTagsTable, ({ one }) => ({
+  task: one(tasksTable, {
+    fields: [taskTagsTable.taskId],
+    references: [tasksTable.id]
+  }),
+  tag: one(conversationTagsTable, {
+    fields: [taskTagsTable.tagId],
+    references: [conversationTagsTable.id]
+  })
+}));
+
 export type Task = typeof tasksTable.$inferSelect;
 export type NewTask = typeof tasksTable.$inferInsert;
 export type TaskSubtask = typeof taskSubtasksTable.$inferSelect;
 export type NewTaskSubtask = typeof taskSubtasksTable.$inferInsert;
+export type TaskMember = typeof taskMembersTable.$inferSelect;
+export type NewTaskMember = typeof taskMembersTable.$inferInsert;
+export type TaskTag = typeof taskTagsTable.$inferSelect;
+export type NewTaskTag = typeof taskTagsTable.$inferInsert;
