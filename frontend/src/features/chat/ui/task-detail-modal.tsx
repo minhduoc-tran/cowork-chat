@@ -1,5 +1,5 @@
 import * as React from "react"
-import { AlertCircleIcon, CalendarIcon, CheckSquareIcon, ClockIcon, FileTextIcon, LoaderIcon, PlusIcon, Trash2Icon, UserIcon, XIcon } from "lucide-react"
+import { AlertCircleIcon, CalendarIcon, CheckSquareIcon, ClockIcon, FileTextIcon, LoaderIcon, MessageSquareIcon, PlusIcon, Trash2Icon, UserIcon, XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
@@ -16,7 +16,11 @@ import {
   useConversationTags,
   useCreateConversationTag,
   useAddTaskMember,
-  useRemoveTaskMember
+  useRemoveTaskMember,
+  useTaskComments,
+  useCreateComment,
+  useUpdateComment,
+  useDeleteComment
 } from "@/shared/api"
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/shared/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
@@ -24,6 +28,8 @@ import { Button } from "@/shared/ui/button"
 import { DatePicker } from "@/shared/ui/date-picker"
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover"
 import { RichTextEditor } from "@/shared/ui/rich-text-editor"
+import { CommentItem } from "./comment-item"
+import { MentionInput } from "@/shared/ui/mention-input"
 
 interface TaskDetailModalProps {
   open: boolean
@@ -54,6 +60,12 @@ export function TaskDetailModal({ open, onOpenChange, task, members, currentUser
   const addTaskMemberMutation = useAddTaskMember()
   const removeTaskMemberMutation = useRemoveTaskMember()
 
+  // Comment hooks
+  const { data: comments = [] } = useTaskComments(task?.id ?? null)
+  const createCommentMutation = useCreateComment()
+  const updateCommentMutation = useUpdateComment()
+  const deleteCommentMutation = useDeleteComment()
+
   const [isEditingTitle, setIsEditingTitle] = React.useState(false)
   const [title, setTitle] = React.useState("")
   const [isEditingDesc, setIsEditingDesc] = React.useState(false)
@@ -68,6 +80,11 @@ export function TaskDetailModal({ open, onOpenChange, task, members, currentUser
   const [estimatedValue, setEstimatedValue] = React.useState("")
   const [estimatedUnit, setEstimatedUnit] = React.useState<"minutes" | "hours" | "days">("hours")
   const [assigneeDropdownOpen, setAssigneeDropdownOpen] = React.useState(false)
+
+  // Comment state
+  const [newComment, setNewComment] = React.useState("")
+  const [editingCommentId, setEditingCommentId] = React.useState<number | null>(null)
+  const [editingCommentContent, setEditingCommentContent] = React.useState("")
 
   React.useEffect(() => {
     if (task) {
@@ -259,6 +276,37 @@ export function TaskDetailModal({ open, onOpenChange, task, members, currentUser
     catch { toast.error(t("tasks.deleteSubtaskError", "Lỗi xóa")) }
   }
 
+  // Comment handlers
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return
+    try {
+      await createCommentMutation.mutateAsync({ taskId: task.id, payload: { content: newComment.trim() } })
+      setNewComment("")
+    } catch { toast.error(t("tasks.addCommentError", "Không thể thêm bình luận")) }
+  }
+
+  const handleReplyComment = async (parentId: number, content: string) => {
+    if (!content.trim()) return
+    try {
+      await createCommentMutation.mutateAsync({ taskId: task.id, payload: { content: content.trim(), parentId } })
+    } catch { toast.error(t("tasks.addCommentError", "Không thể trả lời bình luận")) }
+  }
+
+  const handleSaveEditComment = async (commentId: number) => {
+    if (!editingCommentContent.trim()) return
+    try {
+      await updateCommentMutation.mutateAsync({ taskId: task.id, commentId, payload: { content: editingCommentContent.trim() } })
+      setEditingCommentId(null)
+      setEditingCommentContent("")
+    } catch { toast.error(t("tasks.editCommentError", "Không thể chỉnh sửa bình luận")) }
+  }
+
+  const handleDeleteComment = async (commentId: number) => {
+    try {
+      await deleteCommentMutation.mutateAsync({ taskId: task.id, commentId })
+    } catch { toast.error(t("tasks.deleteCommentError", "Không thể xóa bình luận")) }
+  }
+
   const totalSubtasks = task.subtasks?.length ?? 0
   const completedSubtasks = task.subtasks?.filter((s) => s.isCompleted).length ?? 0
   const progressPct = totalSubtasks > 0 ? Math.round((completedSubtasks / totalSubtasks) * 100) : 0
@@ -417,6 +465,81 @@ export function TaskDetailModal({ open, onOpenChange, task, members, currentUser
                   </Button>
                 </form>
               )}
+            </div>
+
+            {/* Comments Section - Notion Style */}
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <span className="notion-section-label">
+                  <MessageSquareIcon className="size-3.5" />
+                  {t("tasks.comments", "Bình luận")}
+                  {comments.length > 0 && (
+                    <span className="text-[var(--notion-text-tertiary)] font-normal ml-1">
+                      {comments.length}
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              {/* Add comment input - Notion style with mention (At the top) */}
+              <div className="flex items-start gap-3 pb-4 border-b border-[var(--notion-border)]">
+                <Avatar className="h-8 w-8 mt-1">
+                  <AvatarFallback className="text-[10px] bg-[var(--notion-accent)] text-white font-medium">
+                    {task.creator?.displayName?.slice(0, 2).toUpperCase() ?? "??"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 flex flex-col gap-2">
+                  <MentionInput
+                    value={newComment}
+                    onChange={setNewComment}
+                    onSubmit={handleAddComment}
+                    members={members}
+                    placeholder={t("tasks.addCommentPlaceholder", "Viết bình luận...")}
+                    disabled={createCommentMutation.isPending}
+                    isSubmitting={createCommentMutation.isPending}
+                    minRows={2}
+                    className="w-full"
+                    autoFocus={false}
+                  />
+                </div>
+              </div>
+
+              {/* Comment list */}
+              <div className="flex flex-col gap-1">
+                {comments.filter(c => !c.deletedAt).length === 0 && (
+                  <div className="notion-empty-state py-6 text-center">
+                    <MessageSquareIcon className="size-8 text-[var(--notion-text-tertiary)] mx-auto mb-2 opacity-40" />
+                    <p className="text-xs text-[var(--notion-text-tertiary)]">
+                      {t("tasks.noComments", "Chưa có bình luận nào. Hãy là người đầu tiên bình luận!")}
+                    </p>
+                  </div>
+                )}
+                {comments.filter(c => !c.deletedAt).map((comment) => (
+                  <CommentItem
+                    key={comment.id}
+                    comment={comment}
+                    currentUserId={currentUserId}
+                    editingCommentId={editingCommentId}
+                    editingCommentContent={editingCommentContent}
+                    onStartEdit={(id, content) => {
+                      setEditingCommentId(id)
+                      setEditingCommentContent(content)
+                    }}
+                    onCancelEdit={() => {
+                      setEditingCommentId(null)
+                      setEditingCommentContent("")
+                    }}
+                    onSaveEdit={handleSaveEditComment}
+                    onDelete={handleDeleteComment}
+                    onSubmitReply={handleReplyComment}
+                    onContentChange={setEditingCommentContent}
+                    updateCommentMutation={updateCommentMutation}
+                    createCommentMutation={createCommentMutation}
+                    t={t}
+                    members={members}
+                  />
+                ))}
+              </div>
             </div>
           </div>
 

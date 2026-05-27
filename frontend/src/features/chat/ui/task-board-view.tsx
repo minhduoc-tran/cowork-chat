@@ -1,5 +1,5 @@
 import * as React from "react"
-import { LayoutGridIcon, ListIcon, Loader2Icon, PlusIcon, SearchIcon } from "lucide-react"
+import { CalendarIcon, LayoutGridIcon, ListIcon, Loader2Icon, PlusIcon, SearchIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
@@ -15,6 +15,7 @@ import { TaskBoard } from "./task-board"
 import { TaskCreateModal } from "./task-create-modal"
 import { TaskDetailModal } from "./task-detail-modal"
 import { TaskTable } from "./task-table"
+import { TaskCalendar } from "./task-calendar"
 
 const stripHtml = (html: string) => {
   return html.replace(/<[^>]*>/g, "")
@@ -88,12 +89,13 @@ export function TaskBoardView({
   }), [filterFields])
 
   // State
-  const [viewMode, setViewMode] = React.useState<"board" | "table">("board")
+  const [viewMode, setViewMode] = React.useState<"board" | "table" | "calendar">("board")
   const [taskScope, setTaskScope] = React.useState<"group" | "personal">(() =>
     isGroup && conversationId ? "group" : "personal"
   )
   const [searchQuery, setSearchQuery] = React.useState("")
   const [createModalOpen, setCreateModalOpen] = React.useState(false)
+  const [prefilledDueDate, setPrefilledDueDate] = React.useState<string | null>(null)
   const [selectedTask, setSelectedTask] = React.useState<Task | null>(null)
 
   // Sync taskScope when changing conversations
@@ -136,6 +138,16 @@ export function TaskBoardView({
     } catch (err) {
       console.error(err)
       toast.error(t("tasks.updateError", "Không thể cập nhật trạng thái"))
+    }
+  }
+
+  const handleUpdateTaskDueDate = async (taskId: number, dueDate: string | null) => {
+    try {
+      await updateTaskMutation.mutateAsync({ taskId, payload: { dueDate } })
+      toast.success(t("tasks.dueDateUpdated", "Đã cập nhật hạn chót"))
+    } catch (err) {
+      console.error(err)
+      toast.error(t("tasks.updateError", "Không thể cập nhật hạn chót"))
     }
   }
 
@@ -196,6 +208,17 @@ export function TaskBoardView({
               >
                 <ListIcon className="size-4" />
               </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("calendar")}
+                className={cn(
+                  "notion-tab",
+                  viewMode === "calendar" ? "notion-tab--active" : "notion-tab--inactive"
+                )}
+                title={t("tasks.viewCalendar", "Dạng lịch")}
+              >
+                <CalendarIcon className="size-4" />
+              </button>
             </div>
           </div>
 
@@ -219,7 +242,10 @@ export function TaskBoardView({
             {/* New Task Button */}
             <Button
               type="button"
-              onClick={() => setCreateModalOpen(true)}
+              onClick={() => {
+                setPrefilledDueDate(null)
+                setCreateModalOpen(true)
+              }}
               className="notion-btn-primary h-8 px-3 text-xs gap-1.5"
             >
               <PlusIcon className="size-4" />
@@ -239,15 +265,30 @@ export function TaskBoardView({
               tasks={filteredTasks}
               onSelectTask={setSelectedTask}
               onUpdateTaskStatus={handleUpdateTaskStatus}
-              onAddTask={() => setCreateModalOpen(true)}
+              onAddTask={() => {
+                setPrefilledDueDate(null)
+                setCreateModalOpen(true)
+              }}
             />
-          ) : (
+          ) : viewMode === "table" ? (
             <TaskTable
               conversationId={activeQueryConversationId}
               searchQuery={searchQuery}
               onSelectTask={setSelectedTask}
               onUpdateTaskStatus={handleUpdateTaskStatus}
             />
+          ) : (
+            <div className="h-full w-full overflow-auto">
+              <TaskCalendar
+                tasks={filteredTasks}
+                onSelectTask={setSelectedTask}
+                onAddTask={(dueDateStr) => {
+                  setPrefilledDueDate(dueDateStr)
+                  setCreateModalOpen(true)
+                }}
+                onUpdateTaskDueDate={handleUpdateTaskDueDate}
+              />
+            </div>
           )}
         </div>
 
@@ -258,6 +299,7 @@ export function TaskBoardView({
           conversationId={activeQueryConversationId}
           members={conversationMembers}
           currentUserId={currentUserId}
+          initialDueDate={prefilledDueDate}
         />
 
         <TaskDetailModal

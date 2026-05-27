@@ -55,6 +55,7 @@ export interface Task {
   subtasks: TaskSubtask[]
   members: TaskMember[]
   tags: TaskTag[]
+  comments: TaskComment[]
   creator: {
     id: number
     displayName: string
@@ -96,4 +97,30 @@ export interface CreateSubtaskPayload {
 export interface UpdateSubtaskPayload {
   title?: string
   isCompleted?: boolean
+}
+
+export interface TaskComment {
+  id: number
+  taskId: number
+  authorId: number
+  parentId: number | null
+  content: string
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
+  author: {
+    id: number
+    displayName: string
+    avatar: string | null
+  }
+  replies?: TaskComment[]
+}
+
+export interface CreateCommentPayload {
+  content: string
+  parentId?: number
+}
+
+export interface UpdateCommentPayload {
+  content: string
 }

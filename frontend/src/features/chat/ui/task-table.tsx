@@ -140,19 +140,19 @@ export function TaskTable({ conversationId, searchQuery, onSelectTask, onUpdateT
 
   return (
     <div className="h-full w-full overflow-auto p-0 select-none">
-      <div className="w-full min-w-[850px] overflow-hidden">
+      <div className="w-full min-w-[1100px] overflow-hidden">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="notion-table-header">
             <tr>
-              <th>{colHeader("title", t("tasks.title", "Tiêu đề"))}</th>
-              <th className="w-[130px]">{colHeader("status", t("tasks.status", "Trạng thái"))}</th>
-              <th className="w-[150px]">{t("tasks.assignee", "Người thực hiện")}</th>
-              <th className="w-[120px]">{colHeader("priority", t("tasks.priority", "Ưu tiên"))}</th>
-              <th className="w-[130px]">{colHeader("dueDate", t("tasks.dueDate", "Hạn chót"))}</th>
-              <th className="w-[100px]">{t("tasks.estimatedTime", "Thời gian")}</th>
-              <th className="w-[150px]">{t("tasks.tags", "Nhãn")}</th>
-              <th className="w-[110px]">{t("tasks.progress", "Tiến độ")}</th>
-              <th className="w-[50px]" />
+              <th className="min-w-[220px]">{colHeader("title", t("tasks.title", "Tiêu đề"))}</th>
+              <th className="w-[130px] min-w-[130px]">{colHeader("status", t("tasks.status", "Trạng thái"))}</th>
+              <th className="w-[150px] min-w-[150px]">{t("tasks.assignee", "Người thực hiện")}</th>
+              <th className="w-[140px] min-w-[140px]">{colHeader("priority", t("tasks.priority", "Ưu tiên"))}</th>
+              <th className="w-[130px] min-w-[130px]">{colHeader("dueDate", t("tasks.dueDate", "Hạn chót"))}</th>
+              <th className="w-[170px] min-w-[170px]">{t("tasks.estimatedTime", "Thời gian")}</th>
+              <th className="w-[150px] min-w-[150px]">{t("tasks.tags", "Nhãn")}</th>
+              <th className="w-[110px] min-w-[110px]">{t("tasks.progress", "Tiến độ")}</th>
+              <th className="w-[50px] min-w-[50px]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--notion-border)]">

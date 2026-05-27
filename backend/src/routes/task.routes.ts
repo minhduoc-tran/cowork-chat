@@ -26,4 +26,10 @@ router.post("/:taskId/tags", taskController.addTagToTask);
 router.get("/:taskId/tags", taskController.listTaskTags);
 router.delete("/:taskId/tags/:tagId", taskController.removeTagFromTask);
 
+// Comment routes
+router.get("/:taskId/comments", taskController.listComments);
+router.post("/:taskId/comments", taskController.createComment);
+router.patch("/:taskId/comments/:commentId", taskController.updateComment);
+router.delete("/:taskId/comments/:commentId", taskController.deleteComment);
+
 export default router;

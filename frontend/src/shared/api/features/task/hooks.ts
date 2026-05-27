@@ -6,6 +6,8 @@ import type {
   CreateTaskPayload,
   UpdateSubtaskPayload,
   UpdateTaskPayload,
+  CreateCommentPayload,
+  UpdateCommentPayload,
 } from "./types"
 
 export function useTasks(conversationId?: number | null) {
@@ -246,6 +248,60 @@ export function useRemoveTagFromTask() {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["tasks"],
+      })
+    },
+  })
+}
+
+// Comment Management Hooks
+export function useTaskComments(taskId: number | null) {
+  return useQuery({
+    queryKey: ["task_comments", taskId],
+    queryFn: () =>
+      taskId
+        ? taskApi.listComments(taskId).then((res) => res.data.data ?? [])
+        : Promise.resolve([]),
+    enabled: !!taskId,
+  })
+}
+
+export function useCreateComment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, payload }: { taskId: number; payload: CreateCommentPayload }) =>
+      taskApi.createComment(taskId, payload).then((res) => res.data.data),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["task_comments", variables.taskId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+      })
+    },
+  })
+}
+
+export function useUpdateComment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, commentId, payload }: { taskId: number; commentId: number; payload: UpdateCommentPayload }) =>
+      taskApi.updateComment(taskId, commentId, payload).then((res) => res.data.data),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["task_comments", variables.taskId],
+      })
+    },
+  })
+}
+
+export function useDeleteComment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, commentId }: { taskId: number; commentId: number }) =>
+      taskApi.deleteComment(taskId, commentId).then((res) => res.data.data),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["task_comments", variables.taskId],
       })
     },
   })

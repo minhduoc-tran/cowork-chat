@@ -15,6 +15,7 @@ import {
   conversationsTable,
   conversationTagsTable
 } from "./conversation.schema";
+import { taskCommentsTable } from "./task-comment.schema";
 
 export const tasksTable = pgTable(
   "tasks",
@@ -88,7 +89,8 @@ export const tasksRelations = relations(tasksTable, ({ one, many }) => ({
   }),
   subtasks: many(taskSubtasksTable),
   members: many(taskMembersTable),
-  tags: many(taskTagsTable)
+  tags: many(taskTagsTable),
+  comments: many(taskCommentsTable)
 }));
 
 export const taskSubtasksRelations = relations(

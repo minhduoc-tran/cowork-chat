@@ -11,6 +11,9 @@ import type {
   TaskMember,
   ConversationTag,
   TaskTag,
+  TaskComment,
+  CreateCommentPayload,
+  UpdateCommentPayload,
 } from "./types"
 
 export const taskApi = {
@@ -97,4 +100,17 @@ export const taskApi = {
 
   removeTagFromTask: (taskId: number, tagId: number) =>
     apiClient.delete<ApiResponse<{ success: boolean }>>(`/api/v1/tasks/${taskId}/tags/${tagId}`),
+
+  // Comment Management API
+  listComments: (taskId: number) =>
+    apiClient.get<ApiResponse<TaskComment[]>>(`/api/v1/tasks/${taskId}/comments`),
+
+  createComment: (taskId: number, data: CreateCommentPayload) =>
+    apiClient.post<ApiResponse<TaskComment>>(`/api/v1/tasks/${taskId}/comments`, data),
+
+  updateComment: (taskId: number, commentId: number, data: UpdateCommentPayload) =>
+    apiClient.patch<ApiResponse<TaskComment>>(`/api/v1/tasks/${taskId}/comments/${commentId}`, data),
+
+  deleteComment: (taskId: number, commentId: number) =>
+    apiClient.delete<ApiResponse<{ success: boolean }>>(`/api/v1/tasks/${taskId}/comments/${commentId}`),
 }

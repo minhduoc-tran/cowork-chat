@@ -412,6 +412,90 @@ async function removeTagFromTask(req: Request, res: Response, next: NextFunction
   }
 }
 
+// Comment Controllers
+async function createComment(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    if (isNaN(taskId) || taskId < 1) {
+      throw ApiError.badRequest("Invalid task ID");
+    }
+
+    const content = typeof req.body.content === "string" ? req.body.content.trim() : "";
+    if (!content) {
+      throw ApiError.badRequest("Content is required");
+    }
+
+    const parentId = req.body.parentId !== undefined && req.body.parentId !== null
+      ? Number(req.body.parentId)
+      : undefined;
+    if (parentId !== undefined && (isNaN(parentId) || parentId < 1)) {
+      throw ApiError.badRequest("Invalid parent comment ID");
+    }
+
+    const result = await taskService.createComment(taskId, req.user.id, content, parentId);
+    return ApiResponse.created(res, "Comment created successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listComments(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    if (isNaN(taskId) || taskId < 1) {
+      throw ApiError.badRequest("Invalid task ID");
+    }
+
+    const result = await taskService.listComments(taskId);
+    return ApiResponse.ok(res, "Comments fetched successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateComment(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    const commentId = Number(req.params.commentId);
+    if (isNaN(taskId) || isNaN(commentId) || taskId < 1 || commentId < 1) {
+      throw ApiError.badRequest("Invalid parameters");
+    }
+
+    const content = typeof req.body.content === "string" ? req.body.content.trim() : "";
+    if (!content) {
+      throw ApiError.badRequest("Content is required");
+    }
+
+    const result = await taskService.updateComment(taskId, commentId, req.user.id, content);
+    return ApiResponse.ok(res, "Comment updated successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deleteComment(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) throw ApiError.unauthorized("Not authenticated");
+
+    const taskId = Number(req.params.taskId);
+    const commentId = Number(req.params.commentId);
+    if (isNaN(taskId) || isNaN(commentId) || taskId < 1 || commentId < 1) {
+      throw ApiError.badRequest("Invalid parameters");
+    }
+
+    await taskService.deleteComment(taskId, commentId, req.user.id);
+    return ApiResponse.ok(res, "Comment deleted successfully", null);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export const taskController = {
   listTasks,
   createTask,
@@ -428,5 +512,10 @@ export const taskController = {
   // Tag associations
   addTagToTask,
   listTaskTags,
-  removeTagFromTask
+  removeTagFromTask,
+  // Comment management
+  createComment,
+  listComments,
+  updateComment,
+  deleteComment
 };

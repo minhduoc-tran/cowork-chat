@@ -5,6 +5,7 @@ import {
   taskMembersTable,
   taskTagsTable
 } from "../drizzle/schemas/task.schema";
+import { taskCommentsTable } from "../drizzle/schemas/task-comment.schema";
 import { conversationTagsTable } from "../drizzle/schemas/conversation.schema";
 import {
   eq,
@@ -274,7 +275,8 @@ async function listTasks(input: {
           with: {
             tag: true
           }
-        }
+        },
+        comments: true
       }
     });
   } else {
@@ -333,7 +335,8 @@ async function listTasks(input: {
           with: {
             tag: true
           }
-        }
+        },
+        comments: true
       }
     });
   }
@@ -966,6 +969,208 @@ async function listTaskTags(taskId: number) {
   });
 }
 
+// Comment Functions
+async function createComment(
+  taskId: number,
+  authorId: number,
+  content: string,
+  parentId?: number
+) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  let isTaskMember = false;
+  if (task.conversationId) {
+    try {
+      await conversationService.ensureActiveConversationMember(task.conversationId, authorId);
+      isTaskMember = true;
+    } catch {
+      // Not a conversation member - check if user is a task member
+      const memberRole = await getTaskMemberRole(taskId, authorId);
+      if (memberRole) {
+        isTaskMember = true;
+      } else {
+        throw ApiError.forbidden("You do not have permission to comment on this task");
+      }
+    }
+  } else {
+    if (task.createdById !== authorId && task.assignedToId !== authorId) {
+      throw ApiError.forbidden("You do not have permission to comment on this task");
+    }
+  }
+
+  // Validate parent comment if provided
+  if (parentId !== undefined) {
+    const parentComment = await db.query.taskCommentsTable.findFirst({
+      where: and(
+        eq(taskCommentsTable.id, parentId),
+        eq(taskCommentsTable.taskId, taskId)
+      )
+    });
+    if (!parentComment) throw ApiError.notFound("Parent comment not found");
+    // Ensure parent is not itself a reply (single-level threading)
+    if (parentComment.parentId !== null) {
+      throw ApiError.badRequest("Cannot reply to a reply (only single-level threading supported)");
+    }
+  }
+
+  const [comment] = await db
+    .insert(taskCommentsTable)
+    .values({
+      taskId,
+      authorId,
+      parentId: parentId ?? null,
+      content
+    })
+    .returning();
+
+  // Fetch with author info
+  const result = await db.query.taskCommentsTable.findFirst({
+    where: eq(taskCommentsTable.id, comment.id),
+    with: {
+      author: {
+        columns: { id: true, displayName: true, avatar: true }
+      }
+    }
+  });
+
+  const userIds = await getRecipientUserIds(task.conversationId, task.createdById);
+  socketEmitter.emitTaskCommentCreated(task.conversationId, userIds, result!);
+
+  return result;
+}
+
+async function listComments(taskId: number) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  // Get all comments for this task
+  const comments = await db.query.taskCommentsTable.findMany({
+    where: eq(taskCommentsTable.taskId, taskId),
+    with: {
+      author: {
+        columns: { id: true, displayName: true, avatar: true }
+      },
+      replies: {
+        with: {
+          author: {
+            columns: { id: true, displayName: true, avatar: true }
+          }
+        },
+        orderBy: (tc, { asc }) => [asc(tc.createdAt)]
+      }
+    },
+    orderBy: (tc, { asc }) => [asc(tc.createdAt)]
+  });
+
+  // Filter to only top-level comments (parentId is null) and return with their replies
+  return comments
+    .filter(c => c.parentId === null)
+    .map(c => ({
+      ...c,
+      replies: c.replies.map(r => ({
+        ...r,
+        author: r.author
+      }))
+    }));
+}
+
+async function updateComment(
+  taskId: number,
+  commentId: number,
+  userId: number,
+  content: string
+) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  const comment = await db.query.taskCommentsTable.findFirst({
+    where: and(
+      eq(taskCommentsTable.id, commentId),
+      eq(taskCommentsTable.taskId, taskId)
+    )
+  });
+  if (!comment) throw ApiError.notFound("Comment not found");
+  if (comment.deletedAt) throw ApiError.notFound("Comment not found");
+
+  // Only author can update
+  if (comment.authorId !== userId) {
+    throw ApiError.forbidden("You can only edit your own comments");
+  }
+
+  const [updated] = await db
+    .update(taskCommentsTable)
+    .set({
+      content,
+      updatedAt: new Date()
+    })
+    .where(eq(taskCommentsTable.id, commentId))
+    .returning();
+
+  const result = await db.query.taskCommentsTable.findFirst({
+    where: eq(taskCommentsTable.id, commentId),
+    with: {
+      author: {
+        columns: { id: true, displayName: true, avatar: true }
+      }
+    }
+  });
+
+  const userIds = await getRecipientUserIds(task.conversationId, task.createdById);
+  socketEmitter.emitTaskCommentUpdated(task.conversationId, userIds, result!);
+
+  return result;
+}
+
+async function deleteComment(
+  taskId: number,
+  commentId: number,
+  userId: number
+) {
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) throw ApiError.notFound("Task not found");
+
+  const comment = await db.query.taskCommentsTable.findFirst({
+    where: and(
+      eq(taskCommentsTable.id, commentId),
+      eq(taskCommentsTable.taskId, taskId)
+    )
+  });
+  if (!comment) throw ApiError.notFound("Comment not found");
+  if (comment.deletedAt) throw ApiError.notFound("Comment not found");
+
+  // Only author can delete
+  if (comment.authorId !== userId) {
+    throw ApiError.forbidden("You can only delete your own comments");
+  }
+
+  // Hard delete
+  await db
+    .delete(taskCommentsTable)
+    .where(
+      or(
+        eq(taskCommentsTable.id, commentId),
+        eq(taskCommentsTable.parentId, commentId)
+      )
+    );
+
+  const userIds = await getRecipientUserIds(task.conversationId, task.createdById);
+  socketEmitter.emitTaskCommentDeleted(task.conversationId, userIds, {
+    taskId,
+    commentId
+  });
+
+  return { success: true };
+}
+
 export const taskService = {
   listTasks,
   createTask,
@@ -985,5 +1190,10 @@ export const taskService = {
   deleteConversationTag,
   addTagToTask,
   removeTagFromTask,
-  listTaskTags
+  listTaskTags,
+  // Comment management
+  createComment,
+  listComments,
+  updateComment,
+  deleteComment
 };

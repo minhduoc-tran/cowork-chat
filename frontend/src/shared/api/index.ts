@@ -74,6 +74,10 @@ export {
   useDeleteConversationTag,
   useAddTagToTask,
   useRemoveTagFromTask,
+  useTaskComments,
+  useCreateComment,
+  useUpdateComment,
+  useDeleteComment,
 } from "./features/task/hooks"
 export type {
   CreateSubtaskPayload,
@@ -85,6 +89,9 @@ export type {
   TaskMember,
   ConversationTag,
   TaskTag,
+  TaskComment,
+  CreateCommentPayload,
+  UpdateCommentPayload,
 } from "./features/task/types"
 export { userApi } from "./features/user/api"
 export { useUpdateProfile } from "./features/user/hooks"

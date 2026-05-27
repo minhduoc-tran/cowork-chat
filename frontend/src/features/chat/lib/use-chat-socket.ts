@@ -9,6 +9,7 @@ import type {
   ConversationMessageReplyPreview,
   ConversationPin,
   Task,
+  TaskComment,
 } from "@/shared/api"
 import { getSocket } from "@/shared/lib/socket"
 
@@ -346,6 +347,73 @@ export function useChatSocket({
       void queryClient.invalidateQueries({ queryKey: ["tasks", conversationIdKey] })
     }
 
+    const handleTaskCommentCreated = (payload: TaskComment) => {
+      queryClient.setQueryData<TaskComment[]>(["task_comments", payload.taskId], (oldComments) => {
+        if (!oldComments) return [payload]
+        if (payload.parentId === null) {
+          if (oldComments.some((c) => c.id === payload.id)) return oldComments
+          return [...oldComments, { ...payload, replies: [] }]
+        } else {
+          return oldComments.map((comment) => {
+            if (comment.id === payload.parentId) {
+              const currentReplies = comment.replies ?? []
+              if (currentReplies.some((r) => r.id === payload.id)) return comment
+              return {
+                ...comment,
+                replies: [...currentReplies, payload]
+              }
+            }
+            return comment
+          })
+        }
+      })
+      void queryClient.invalidateQueries({ queryKey: ["task_comments", payload.taskId] })
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] })
+    }
+
+    const handleTaskCommentUpdated = (payload: TaskComment) => {
+      queryClient.setQueryData<TaskComment[]>(["task_comments", payload.taskId], (oldComments) => {
+        if (!oldComments) return []
+        if (payload.parentId === null) {
+          return oldComments.map((c) => (c.id === payload.id ? { ...c, ...payload } : c))
+        } else {
+          return oldComments.map((comment) => {
+            if (comment.id === payload.parentId) {
+              const currentReplies = comment.replies ?? []
+              return {
+                ...comment,
+                replies: currentReplies.map((r) => (r.id === payload.id ? { ...r, ...payload } : r))
+              }
+            }
+            return comment
+          })
+        }
+      })
+      void queryClient.invalidateQueries({ queryKey: ["task_comments", payload.taskId] })
+    }
+
+    const handleTaskCommentDeleted = (payload: { taskId: number; commentId: number }) => {
+      queryClient.setQueryData<TaskComment[]>(["task_comments", payload.taskId], (oldComments) => {
+        if (!oldComments) return []
+        
+        // 1. Filter out from top-level comments
+        const filteredTopLevel = oldComments.filter((c) => c.id !== payload.commentId)
+        
+        // 2. Filter out from replies of remaining comments
+        return filteredTopLevel.map((comment) => {
+          if (comment.replies) {
+            return {
+              ...comment,
+              replies: comment.replies.filter((r) => r.id !== payload.commentId)
+            }
+          }
+          return comment
+        })
+      })
+      void queryClient.invalidateQueries({ queryKey: ["task_comments", payload.taskId] })
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] })
+    }
+
     socket.on("message.received", handleMessage)
     socket.on("message.read", handleMessageRead)
     socket.on("message.updated", handleMessageUpdated)
@@ -356,6 +424,9 @@ export function useChatSocket({
     socket.on("task.created", handleTaskCreated)
     socket.on("task.updated", handleTaskUpdated)
     socket.on("task.deleted", handleTaskDeleted)
+    socket.on("task.comment.created", handleTaskCommentCreated)
+    socket.on("task.comment.updated", handleTaskCommentUpdated)
+    socket.on("task.comment.deleted", handleTaskCommentDeleted)
 
     return () => {
       socket.off("message.received", handleMessage)
@@ -368,6 +439,9 @@ export function useChatSocket({
       socket.off("task.created", handleTaskCreated)
       socket.off("task.updated", handleTaskUpdated)
       socket.off("task.deleted", handleTaskDeleted)
+      socket.off("task.comment.created", handleTaskCommentCreated)
+      socket.off("task.comment.updated", handleTaskCommentUpdated)
+      socket.off("task.comment.deleted", handleTaskCommentDeleted)
     }
   }, [
     activeConversationId,

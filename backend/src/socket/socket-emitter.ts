@@ -184,5 +184,47 @@ export const socketEmitter = {
     userIds.forEach(userId => {
       io.to(`user:${userId}`).emit("task.deleted", payload);
     });
+  },
+
+  emitTaskCommentCreated(
+    conversationId: number | null,
+    userIds: number[],
+    payload: unknown
+  ) {
+    const io = getSocketServer();
+    if (conversationId) {
+      io.to(`conversation:${conversationId}`).emit("task.comment.created", payload);
+    }
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("task.comment.created", payload);
+    });
+  },
+
+  emitTaskCommentUpdated(
+    conversationId: number | null,
+    userIds: number[],
+    payload: unknown
+  ) {
+    const io = getSocketServer();
+    if (conversationId) {
+      io.to(`conversation:${conversationId}`).emit("task.comment.updated", payload);
+    }
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("task.comment.updated", payload);
+    });
+  },
+
+  emitTaskCommentDeleted(
+    conversationId: number | null,
+    userIds: number[],
+    payload: { taskId: number; commentId: number }
+  ) {
+    const io = getSocketServer();
+    if (conversationId) {
+      io.to(`conversation:${conversationId}`).emit("task.comment.deleted", payload);
+    }
+    userIds.forEach(userId => {
+      io.to(`user:${userId}`).emit("task.comment.deleted", payload);
+    });
   }
 };
