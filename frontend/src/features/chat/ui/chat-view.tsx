@@ -8,6 +8,7 @@ import {
   useDisbandGroup,
   useLeaveGroup,
 } from "@/shared/api/features/conversation/hooks"
+import { useTasks } from "@/shared/api"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -79,9 +80,21 @@ export function ChatView() {
     currentUserId,
     isFetchingNextPage,
     activeConversation,
+    taskMentions,
+    setTaskMentions,
   } = useChat()
 
   const [tasksOpen, setTasksOpen] = React.useState(false)
+  const [pendingOpenTaskId, setPendingOpenTaskId] = React.useState<number | null>(null)
+
+  const activeConversationId = activeConversation?.conversation?.id ?? null
+  const isGroup = activeConversation?.conversation?.type === "group"
+  const { data: tasks = [] } = useTasks(isGroup ? activeConversationId : null)
+
+  const handleTaskClick = React.useCallback((taskId: number) => {
+    setPendingOpenTaskId(taskId)
+    setTasksOpen(true)
+  }, [])
 
   const [sidebarOpen, setSidebarOpen] = React.useState(() => {
     if (typeof window !== "undefined") {
@@ -198,6 +211,8 @@ export function ChatView() {
           scrollHintMode={scrollHintMode}
           handleScrollToBottom={handleScrollToBottom}
           isFetchingNextPage={isFetchingNextPage}
+          onTaskClick={handleTaskClick}
+          tasks={tasks}
         />
 
         <ChatInputPanel
@@ -214,6 +229,8 @@ export function ChatView() {
           getSenderName={getSenderName}
           activeConversation={activeConversation}
           currentUserId={currentUserId}
+          taskMentions={taskMentions}
+          setTaskMentions={setTaskMentions}
         />
       </div>
 
@@ -350,6 +367,8 @@ export function ChatView() {
               isGroup={activeConversation?.conversation?.type === "group"}
               conversationMembers={activeConversation?.members ?? []}
               currentUserId={currentUserId}
+              requestedTaskId={pendingOpenTaskId}
+              onClearRequestedTaskId={() => setPendingOpenTaskId(null)}
             />
           </div>
         </SheetContent>

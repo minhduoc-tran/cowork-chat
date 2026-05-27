@@ -190,6 +190,25 @@ async function deleteTask(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function getTaskById(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.id) {
+      throw ApiError.unauthorized("Not authenticated");
+    }
+
+    const taskId = Number(req.params.taskId);
+    if (isNaN(taskId) || taskId < 1) {
+      throw ApiError.badRequest("Invalid task ID");
+    }
+
+    const result = await taskService.getTaskById(taskId, req.user.id);
+
+    return ApiResponse.ok(res, "Task fetched successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 // Subtask Controllers
 async function createSubtask(req: Request, res: Response, next: NextFunction) {
   try {
@@ -498,6 +517,7 @@ async function deleteComment(req: Request, res: Response, next: NextFunction) {
 
 export const taskController = {
   listTasks,
+  getTaskById,
   createTask,
   updateTask,
   deleteTask,

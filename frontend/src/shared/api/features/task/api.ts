@@ -34,6 +34,11 @@ export const taskApi = {
       },
     }),
 
+  getById: (taskId: number) =>
+    apiClient.get<ApiResponse<Task>>(
+      TASK_ROUTES.DETAIL.replace(":taskId", String(taskId))
+    ),
+
   create: (data: CreateTaskPayload) =>
     apiClient.post<ApiResponse<Task>>(TASK_ROUTES.BASE, data),
 

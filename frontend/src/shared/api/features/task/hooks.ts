@@ -20,6 +20,17 @@ export function useTasks(conversationId?: number | null) {
   })
 }
 
+export function useTask(taskId: number | null) {
+  return useQuery({
+    queryKey: ["task", taskId],
+    queryFn: () =>
+      taskId
+        ? taskApi.getById(taskId).then((res) => res.data.data)
+        : Promise.resolve(null),
+    enabled: !!taskId,
+  })
+}
+
 export function useInfiniteTasks(
   conversationId?: number | null,
   limit = 15,

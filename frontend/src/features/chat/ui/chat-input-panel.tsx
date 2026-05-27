@@ -5,6 +5,7 @@ import { ReplyIcon, SendIcon, SmileIcon, XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import type { ConversationListItem, ConversationMember } from "@/shared/api"
+import { useTasks } from "@/shared/api"
 import { cn } from "@/shared/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { Button } from "@/shared/ui/button"
@@ -12,6 +13,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover"
 
 import type { ChatMessage } from "../lib/chat-utils"
 import { getMessagePreview } from "../lib/chat-utils"
+
+const stripHtml = (html: string) => {
+  return html.replace(/<[^>]*>/g, "")
+}
 
 interface ChatInputPanelProps {
   input: string
@@ -29,6 +34,8 @@ interface ChatInputPanelProps {
   getSenderName: (message: ChatMessage) => string
   activeConversation?: ConversationListItem | null
   currentUserId?: number
+  taskMentions: { id: number; title: string }[]
+  setTaskMentions: React.Dispatch<React.SetStateAction<{ id: number; title: string }[]>>
 }
 
 export function ChatInputPanel({
@@ -45,18 +52,30 @@ export function ChatInputPanel({
   getSenderName,
   activeConversation,
   currentUserId,
+  taskMentions,
+  setTaskMentions,
 }: ChatInputPanelProps) {
   const { t } = useTranslation()
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement | null>(null)
 
-  // Mentions / tagging state
+  // Member mentions state
   const [showSuggestions, setShowSuggestions] = React.useState(false)
   const [suggestions, setSuggestions] = React.useState<ConversationMember[]>([])
   const [activeSuggestionIndex, setActiveSuggestionIndex] = React.useState(0)
   const [tagTriggerIndex, setTagTriggerIndex] = React.useState(-1)
 
+  // Task mentions state
+  const [showTaskSuggestions, setShowTaskSuggestions] = React.useState(false)
+  const [taskSuggestions, setTaskSuggestions] = React.useState<any[]>([])
+  const [activeTaskSuggestionIndex, setActiveTaskSuggestionIndex] = React.useState(0)
+  const [taskTriggerIndex, setTaskTriggerIndex] = React.useState(-1)
+
   const isGroup = activeConversation?.conversation?.type === "group"
+  const activeConversationId = activeConversation?.conversation?.id ?? null
+
+  // Fetch tasks belonging to the group conversation
+  const { data: conversationTasks = [] } = useTasks(isGroup ? activeConversationId : null)
 
   const getTagSearch = React.useCallback(
     (text: string, selectionStart: number | null) => {
@@ -83,6 +102,36 @@ export function ChatInputPanel({
         active: true,
         search: textBetweenAtAndCursor,
         index: lastAtIndex,
+      }
+    },
+    []
+  )
+
+  const getTaskSearch = React.useCallback(
+    (text: string, selectionStart: number | null) => {
+      if (selectionStart === null)
+        return { active: false, search: "", index: -1 }
+      const textBeforeCursor = text.slice(0, selectionStart)
+      const lastTaskIndex = textBeforeCursor.lastIndexOf("/task ")
+      if (lastTaskIndex === -1) return { active: false, search: "", index: -1 }
+
+      // Check if /task is preceded by a space or is at the start of the string
+      const charBeforeAt =
+        lastTaskIndex > 0 ? textBeforeCursor[lastTaskIndex - 1] : ""
+      if (charBeforeAt !== "" && charBeforeAt !== " ") {
+        return { active: false, search: "", index: -1 }
+      }
+
+      // Check if there is any / or @ after /task
+      const textBetweenTriggerAndCursor = textBeforeCursor.slice(lastTaskIndex + 6)
+      if (textBetweenTriggerAndCursor.includes("/") || textBetweenTriggerAndCursor.includes("@")) {
+        return { active: false, search: "", index: -1 }
+      }
+
+      return {
+        active: true,
+        search: textBetweenTriggerAndCursor,
+        index: lastTaskIndex,
       }
     },
     []
@@ -115,16 +164,49 @@ export function ChatInputPanel({
     [input, setInput, tagTriggerIndex]
   )
 
+  const selectTaskSuggestion = React.useCallback(
+    (task: any) => {
+      const text = input
+      const triggerIndex = taskTriggerIndex
+      const caret = inputRef.current?.selectionStart ?? text.length
+
+      const before = text.slice(0, triggerIndex)
+      const after = text.slice(caret)
+      const newText = before + `/task ${task.title} ` + after
+
+      setInput(newText)
+
+      // Save mention mapping
+      setTaskMentions((prev) => [...prev, { id: task.id, title: task.title }])
+
+      setShowTaskSuggestions(false)
+      setTaskSuggestions([])
+      setTaskTriggerIndex(-1)
+
+      // Restore focus and cursor position
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+          const newCursorPos = triggerIndex + task.title.length + 7 // "/task " + title + " "
+          inputRef.current.setSelectionRange(newCursorPos, newCursorPos)
+        }
+      }, 0)
+    },
+    [input, setInput, taskTriggerIndex, setTaskMentions]
+  )
+
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleInputChange(e)
 
     const value = e.target.value
     const caret = e.target.selectionStart ?? 0
 
-    const searchResult = getTagSearch(value, caret)
-    if (searchResult.active && isGroup && activeConversation?.members) {
-      const search = searchResult.search
-      const index = searchResult.index
+    const memberSearchResult = getTagSearch(value, caret)
+    const taskSearchResult = getTaskSearch(value, caret)
+
+    if (memberSearchResult.active && isGroup && activeConversation?.members) {
+      const search = memberSearchResult.search
+      const index = memberSearchResult.index
 
       const otherMembers = activeConversation.members.filter(
         (m) => m.userId !== currentUserId
@@ -137,10 +219,36 @@ export function ChatInputPanel({
       setTagTriggerIndex(index)
       setActiveSuggestionIndex(0)
       setShowSuggestions(filtered.length > 0)
+
+      // Close task suggestions
+      setShowTaskSuggestions(false)
+      setTaskSuggestions([])
+      setTaskTriggerIndex(-1)
+    } else if (taskSearchResult.active && isGroup && conversationTasks) {
+      const search = taskSearchResult.search
+      const index = taskSearchResult.index
+
+      const filtered = conversationTasks.filter((t) =>
+        t.title.toLowerCase().includes(search.toLowerCase())
+      )
+
+      setTaskSuggestions(filtered)
+      setTaskTriggerIndex(index)
+      setActiveTaskSuggestionIndex(0)
+      setShowTaskSuggestions(filtered.length > 0)
+
+      // Close member suggestions
+      setShowSuggestions(false)
+      setSuggestions([])
+      setTagTriggerIndex(-1)
     } else {
       setShowSuggestions(false)
       setSuggestions([])
       setTagTriggerIndex(-1)
+
+      setShowTaskSuggestions(false)
+      setTaskSuggestions([])
+      setTaskTriggerIndex(-1)
     }
   }
 
@@ -170,10 +278,39 @@ export function ChatInputPanel({
       }
     }
 
+    if (showTaskSuggestions && taskSuggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        setActiveTaskSuggestionIndex((prev) => (prev + 1) % taskSuggestions.length)
+        return
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault()
+        setActiveTaskSuggestionIndex(
+          (prev) => (prev - 1 + taskSuggestions.length) % taskSuggestions.length
+        )
+        return
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault()
+        selectTaskSuggestion(taskSuggestions[activeTaskSuggestionIndex])
+        return
+      }
+      if (e.key === "Escape") {
+        e.preventDefault()
+        setShowTaskSuggestions(false)
+        return
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       setShowSuggestions(false)
       setSuggestions([])
       setTagTriggerIndex(-1)
+
+      setShowTaskSuggestions(false)
+      setTaskSuggestions([])
+      setTaskTriggerIndex(-1)
     }
 
     handleKeyDown(e)
@@ -184,6 +321,10 @@ export function ChatInputPanel({
     setShowSuggestions(false)
     setSuggestions([])
     setTagTriggerIndex(-1)
+
+    setShowTaskSuggestions(false)
+    setTaskSuggestions([])
+    setTaskTriggerIndex(-1)
   }
 
   // Reset suggestions when switching conversations
@@ -192,6 +333,10 @@ export function ChatInputPanel({
     setShowSuggestions(false)
     setSuggestions([])
     setTagTriggerIndex(-1)
+
+    setShowTaskSuggestions(false)
+    setTaskSuggestions([])
+    setTaskTriggerIndex(-1)
   }, [activeConversation?.conversation?.id])
 
   // Handle clicking outside to hide suggestions
@@ -199,6 +344,7 @@ export function ChatInputPanel({
     const handleClickOutside = (e: MouseEvent) => {
       if (inputRef.current && !inputRef.current.contains(e.target as Node)) {
         setShowSuggestions(false)
+        setShowTaskSuggestions(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -244,6 +390,50 @@ export function ChatInputPanel({
                 </AvatarFallback>
               </Avatar>
               <span className="truncate font-medium">{member.displayName}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Task suggestions dropdown */}
+      {showTaskSuggestions && taskSuggestions.length > 0 && (
+        <div className="absolute bottom-full left-4 z-50 mb-2 max-h-48 w-72 overflow-y-auto rounded-xl border border-border/40 bg-popover/85 p-1 text-popover-foreground shadow-xl backdrop-blur-md dark:bg-muted/80">
+          <div className="px-2.5 py-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+            {t("chat.tagTasks", "Gán công việc")}
+          </div>
+          {taskSuggestions.map((task, i) => (
+            <button
+              key={task.id}
+              type="button"
+              onClick={() => selectTaskSuggestion(task)}
+              className={cn(
+                "flex w-full cursor-pointer flex-col gap-0.5 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors",
+                i === activeTaskSuggestionIndex
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              )}
+            >
+              <div className="flex items-center gap-1.5 font-medium">
+                <span className={cn(
+                  "text-[10px] rounded-md px-1.5 py-0.2 select-none border font-mono",
+                  i === activeTaskSuggestionIndex
+                    ? "bg-primary-foreground/20 border-primary-foreground/35 text-primary-foreground"
+                    : "bg-muted border-border text-muted-foreground"
+                )}>
+                  #{task.id}
+                </span>
+                <span className="truncate">{task.title}</span>
+              </div>
+              {task.description && (
+                <div className={cn(
+                  "truncate text-[10px] pl-7",
+                  i === activeTaskSuggestionIndex
+                    ? "text-primary-foreground/75"
+                    : "text-muted-foreground"
+                )}>
+                  {stripHtml(task.description)}
+                </div>
+              )}
             </button>
           ))}
         </div>

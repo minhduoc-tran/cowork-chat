@@ -79,57 +79,137 @@ export function parseMentions(
   return parts
 }
 
+export function parseTaskMentions(
+  text: string,
+  isMine: boolean,
+  tasks?: any[],
+  onTaskClick?: (taskId: number) => void
+): React.ReactNode[] {
+  if (!text) return []
+
+  const taskRegex = /\[\[task:(\d+)\|([\s\S]*?)\]\]/g
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  let key = 0
+
+  while ((match = taskRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+
+    const taskId = Number(match[1])
+    const fallbackTitle = match[2]
+
+    const taskInCache = tasks?.find((t) => t.id === taskId)
+    const displayTitle = taskInCache ? taskInCache.title : fallbackTitle
+    const isDeletedOrInaccessible = tasks ? !taskInCache : false
+
+    parts.push(
+      React.createElement(
+        "button",
+        {
+          key: `task-mention-${key++}`,
+          type: "button",
+          onClick: (e) => {
+            e.stopPropagation()
+            if (onTaskClick) {
+              onTaskClick(taskId)
+            }
+          },
+          className: cn(
+            "mx-0.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold select-none border transition-colors cursor-pointer",
+            isDeletedOrInaccessible
+              ? "line-through bg-zinc-100 text-zinc-400 border-zinc-200 dark:bg-zinc-900/40 dark:text-zinc-500 dark:border-zinc-800"
+              : isMine
+                ? "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/35 hover:bg-primary-foreground/30"
+                : "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+          ),
+        },
+        `#${taskId} ${displayTitle}`
+      )
+    )
+
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts
+}
+
 /**
  * Split message text into plain-text and URL segments,
  * rendering URLs as clickable <a> tags with an underline hover effect.
  * Also parses and highlights member @mentions.
+ * Parses task mentions.
  */
 export function renderMessageContent(
   content: string | null,
   isMine: boolean,
   members?: { displayName: string }[],
-  currentDisplayName?: string
+  currentDisplayName?: string,
+  tasks?: any[],
+  onTaskClick?: (taskId: number) => void
 ): React.ReactNode {
   if (!content) return null
-  const urlRegex = /https?:\/\/[^\s]+/gi
-  const parts: React.ReactNode[] = []
-  let lastIndex = 0
-  let match: RegExpExecArray | null
+
+  // 1. First parse task mentions
+  const taskParts = parseTaskMentions(content, isMine, tasks, onTaskClick)
+
+  // 2. For each part, if it is a string, run URL and member mention parsing on it
+  const finalParts: React.ReactNode[] = []
   let key = 0
-  while ((match = urlRegex.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      const textSegment = content.slice(lastIndex, match.index)
-      parts.push(
-        ...parseMentions(textSegment, isMine, members, currentDisplayName)
-      )
+
+  for (const part of taskParts) {
+    if (typeof part === "string") {
+      const urlRegex = /https?:\/\/[^\s]+/gi
+      let lastIndex = 0
+      let match: RegExpExecArray | null
+
+      while ((match = urlRegex.exec(part)) !== null) {
+        if (match.index > lastIndex) {
+          const textSegment = part.slice(lastIndex, match.index)
+          finalParts.push(
+            ...parseMentions(textSegment, isMine, members, currentDisplayName)
+          )
+        }
+        const url = match[0]
+        finalParts.push(
+          React.createElement(
+            "a",
+            {
+              key: `url-${key++}`,
+              href: url,
+              target: "_blank",
+              rel: "noopener noreferrer",
+              onClick: (e) => e.stopPropagation(),
+              className: cn(
+                "cursor-pointer break-all underline underline-offset-2",
+                isMine ? "text-primary-foreground/90" : "text-primary"
+              ),
+            },
+            url
+          )
+        )
+        lastIndex = match.index + url.length
+      }
+
+      if (lastIndex < part.length) {
+        const trailingSegment = part.slice(lastIndex)
+        finalParts.push(
+          ...parseMentions(trailingSegment, isMine, members, currentDisplayName)
+        )
+      }
+    } else {
+      // It is already a React task button element
+      finalParts.push(part)
     }
-    const url = match[0]
-    parts.push(
-      React.createElement(
-        "a",
-        {
-          key: `url-${key++}`,
-          href: url,
-          target: "_blank",
-          rel: "noopener noreferrer",
-          onClick: (e) => e.stopPropagation(),
-          className: cn(
-            "cursor-pointer break-all underline underline-offset-2",
-            isMine ? "text-primary-foreground/90" : "text-primary"
-          ),
-        },
-        url
-      )
-    )
-    lastIndex = match.index + url.length
   }
-  if (lastIndex < content.length) {
-    const trailingSegment = content.slice(lastIndex)
-    parts.push(
-      ...parseMentions(trailingSegment, isMine, members, currentDisplayName)
-    )
-  }
-  return parts
+
+  return finalParts
 }
 
 export function getScrollViewport(scrollRoot: HTMLDivElement | null) {
@@ -207,4 +287,48 @@ export function getMessagePreview(
   if (normalized.length <= maxLength) return normalized
 
   return `${normalized.slice(0, maxLength).trimEnd()}...`
+}
+
+export function filterTaskMentions(
+  text: string,
+  currentMentions: { id: number; title: string }[]
+): { id: number; title: string }[] {
+  const counts: Record<string, number> = {}
+  const updated: { id: number; title: string }[] = []
+
+  for (const mention of currentMentions) {
+    const searchStr = `/task ${mention.title}`
+    let idx = text.indexOf(searchStr)
+    const occurrenceIndex = counts[searchStr] ?? 0
+    let currentCount = 0
+
+    while (idx !== -1) {
+      if (currentCount === occurrenceIndex) {
+        updated.push(mention)
+        counts[searchStr] = occurrenceIndex + 1
+        break
+      }
+      currentCount++
+      idx = text.indexOf(searchStr, idx + 1)
+    }
+  }
+  return updated
+}
+
+export function serializeTaskMentions(
+  text: string,
+  mentions: { id: number; title: string }[]
+): string {
+  let result = text
+  for (const mention of mentions) {
+    const target = `/task ${mention.title}`
+    const idx = result.indexOf(target)
+    if (idx !== -1) {
+      result =
+        result.substring(0, idx) +
+        `[[task:${mention.id}|${mention.title}]]` +
+        result.substring(idx + target.length)
+    }
+  }
+  return result
 }

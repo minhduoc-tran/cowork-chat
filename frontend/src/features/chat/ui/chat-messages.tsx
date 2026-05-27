@@ -70,6 +70,8 @@ interface ChatMessagesProps {
     role?: string
     joinedAt?: string
   }) => void
+  onTaskClick?: (taskId: number) => void
+  tasks?: any[]
 }
 
 export function ChatMessages({
@@ -92,6 +94,8 @@ export function ChatMessages({
   handleScrollToBottom,
   isFetchingNextPage,
   activeConversation,
+  onTaskClick,
+  tasks,
 }: ChatMessagesProps) {
   const { t } = useTranslation()
   const [selectedUserProfile, setSelectedUserProfile] = React.useState<{
@@ -248,6 +252,8 @@ export function ChatMessages({
                 hasAvatarSpace={hasAvatarSpace}
                 isGroupedWithPrev={isGroupedWithPrev}
                 onViewProfile={setSelectedUserProfile}
+                onTaskClick={onTaskClick}
+                tasks={tasks}
               />
             )
           })}
@@ -319,6 +325,8 @@ interface ChatMessageItemProps {
     role?: string
     joinedAt?: string
   }) => void
+  onTaskClick?: (taskId: number) => void
+  tasks?: any[]
 }
 
 interface SystemMessageItemProps {
@@ -450,6 +458,8 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
       hasAvatarSpace = false,
       isGroupedWithPrev = false,
       onViewProfile,
+      onTaskClick,
+      tasks,
     },
     ref
   ) => {
@@ -721,7 +731,9 @@ const ChatMessageItem = React.forwardRef<HTMLDivElement, ChatMessageItemProps>(
                           msg.content,
                           isMine,
                           activeConversation?.members,
-                          currentDisplayName
+                          currentDisplayName,
+                          tasks,
+                          onTaskClick
                         )}
                       </p>
 

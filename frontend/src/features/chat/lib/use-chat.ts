@@ -22,7 +22,7 @@ import { getSocket } from "@/shared/lib/socket"
 import { getScrollHintMode } from "../model/new-message-hint"
 
 import type { ChatMessage } from "./chat-utils"
-import { hydrateReplyPreviews, mergeMessages } from "./chat-utils"
+import { hydrateReplyPreviews, mergeMessages, filterTaskMentions, serializeTaskMentions } from "./chat-utils"
 import { useChatScroll } from "./use-chat-scroll"
 import { useChatSocket } from "./use-chat-socket"
 
@@ -34,6 +34,12 @@ export function useChat() {
   const queryClient = useQueryClient()
 
   const [input, setInput] = React.useState("")
+  const [taskMentions, setTaskMentions] = React.useState<{ id: number; title: string }[]>([])
+
+  React.useEffect(() => {
+    setTaskMentions((prev) => filterTaskMentions(input, prev))
+  }, [input])
+
   const [conversationIdsByUser, setConversationIdsByUser] = React.useState<
     Record<number, number>
   >({})
@@ -356,7 +362,8 @@ export function useChat() {
   }, [activeConversationId])
 
   const handleSend = () => {
-    const trimmed = input.trim()
+    const serializedContent = serializeTaskMentions(input, taskMentions)
+    const trimmed = serializedContent.trim()
     if (!trimmed || !targetUserId) return
 
     stopTyping()
@@ -401,6 +408,7 @@ export function useChat() {
       }
     })
     setInput("")
+    setTaskMentions([])
     setReplyDraft(null)
   }
 
@@ -593,5 +601,7 @@ export function useChat() {
     getSenderName,
     isFetchingNextPage,
     activeConversation,
+    taskMentions,
+    setTaskMentions,
   }
 }

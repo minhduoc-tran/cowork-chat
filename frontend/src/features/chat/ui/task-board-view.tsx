@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
 import type { Task } from "@/shared/api"
-import { useTasks, useUpdateTask } from "@/shared/api"
+import { useTasks, useUpdateTask, taskApi } from "@/shared/api"
 import { cn } from "@/shared/lib/utils"
 import { Button } from "@/shared/ui/button"
 import { FilterProvider, FilterRoot } from "@/shared/ui/conditional-filter"
@@ -30,6 +30,8 @@ interface TaskBoardViewProps {
     avatar: string | null
   }>
   currentUserId: number
+  requestedTaskId?: number | null
+  onClearRequestedTaskId?: () => void
 }
 
 export function TaskBoardView({
@@ -37,6 +39,8 @@ export function TaskBoardView({
   isGroup,
   conversationMembers,
   currentUserId,
+  requestedTaskId,
+  onClearRequestedTaskId,
 }: TaskBoardViewProps) {
   const { t } = useTranslation()
 
@@ -110,6 +114,58 @@ export function TaskBoardView({
   const activeQueryConversationId = taskScope === "group" ? conversationId : null
   const { data: tasks = [], isLoading } = useTasks(activeQueryConversationId)
   const updateTaskMutation = useUpdateTask()
+
+  React.useEffect(() => {
+    if (!requestedTaskId) return
+
+    // 1. Check if the task is already in the current list
+    const found = tasks.find((t) => t.id === requestedTaskId)
+    if (found) {
+      setSelectedTask(found)
+      setTaskScope("group")
+      onClearRequestedTaskId?.()
+      return
+    }
+
+    // 2. Otherwise, fetch it directly from the API
+    let active = true
+    taskApi
+      .getById(requestedTaskId)
+      .then((res) => {
+        if (!active) return
+        const taskData = res.data?.data
+        if (taskData) {
+          setSelectedTask(taskData)
+          setTaskScope("group")
+        } else {
+          toast.error(
+            t(
+              "tasks.notFoundOrNoAccess",
+              "Công việc không tồn tại hoặc bạn không có quyền truy cập"
+            )
+          )
+        }
+      })
+      .catch((err) => {
+        if (!active) return
+        console.error(err)
+        toast.error(
+          t(
+            "tasks.notFoundOrNoAccess",
+            "Công việc không tồn tại hoặc bạn không có quyền truy cập"
+          )
+        )
+      })
+      .finally(() => {
+        if (active) {
+          onClearRequestedTaskId?.()
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [requestedTaskId, tasks, onClearRequestedTaskId, t])
 
   // Filter tasks by search query
   const filteredTasks = React.useMemo(() => {

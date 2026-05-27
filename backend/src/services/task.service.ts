@@ -1184,8 +1184,23 @@ async function deleteComment(
   return { success: true };
 }
 
+async function getTaskById(taskId: number, userId: number) {
+  const task = await getTaskWithRelations(taskId);
+  if (!task) {
+    throw ApiError.notFound("Task not found");
+  }
+  if (task.conversationId) {
+    await conversationService.ensureActiveConversationMember(
+      task.conversationId,
+      userId
+    );
+  }
+  return task;
+}
+
 export const taskService = {
   listTasks,
+  getTaskById,
   createTask,
   updateTask,
   deleteTask,

@@ -6,7 +6,8 @@ import {
   conversationsTable,
   conversationMembersTable,
   conversationPinsTable,
-  messageReactionsTable
+  messageReactionsTable,
+  tasksTable
 } from "../drizzle";
 import type { Message } from "../drizzle/schemas/message.schema";
 import type { MessageReaction } from "../drizzle/schemas/reaction.schema";
@@ -247,6 +248,40 @@ async function listConversationMessages(input: ListConversationMessagesInput) {
   };
 }
 
+async function validateTaskMentions(
+  content: string,
+  conversationId: number,
+  userId: number
+) {
+  const taskMentionRegex = /\[\[task:(\d+)\|([\s\S]*?)\]\]/g;
+  const matches = [...content.matchAll(taskMentionRegex)];
+
+  if (matches.length > 0) {
+    const conversation = await db.query.conversationsTable.findFirst({
+      where: eq(conversationsTable.id, conversationId)
+    });
+    if (!conversation) {
+      throw ApiError.notFound("Conversation not found");
+    }
+    if (conversation.type !== "group") {
+      throw ApiError.badRequest("Task mentions are only supported in group conversations");
+    }
+
+    for (const match of matches) {
+      const taskId = Number(match[1]);
+      const task = await db.query.tasksTable.findFirst({
+        where: eq(tasksTable.id, taskId)
+      });
+      if (!task) {
+        throw ApiError.badRequest(`Task with ID ${taskId} does not exist`);
+      }
+      if (task.conversationId !== conversationId) {
+        throw ApiError.badRequest(`Task with ID ${taskId} does not belong to this conversation`);
+      }
+    }
+  }
+}
+
 async function sendConversationTextMessage(
   input: SendConversationTextMessageInput
 ) {
@@ -262,6 +297,8 @@ async function sendConversationTextMessage(
   if (!conversation) {
     throw ApiError.notFound("Conversation not found");
   }
+
+  await validateTaskMentions(input.content, input.conversationId, input.senderId);
 
   // Validate replyToId if provided
   let replyPreview: MessageReplyPreview | null = null;
@@ -319,6 +356,10 @@ async function sendConversationTextMessage(
 }
 
 async function sendDirectTextMessage(input: SendDirectTextMessageInput) {
+  if (/\[\[task:\d+\|[\s\S]*?\]\]/.test(input.content)) {
+    throw ApiError.badRequest("Task mentions are not supported in direct messages");
+  }
+
   const targetUser = await db.query.usersTable.findFirst({
     where: eq(usersTable.id, input.targetUserId)
   });
