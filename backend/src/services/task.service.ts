@@ -56,7 +56,20 @@ async function checkTaskPermission(
   userId: number,
   requiredRole: "owner" | "assignee" | "watcher"
 ): Promise<boolean> {
-  const role = await getTaskMemberRole(taskId, userId);
+  const task = await db.query.tasksTable.findFirst({
+    where: eq(tasksTable.id, taskId)
+  });
+  if (!task) return false;
+
+  const dbRole = await getTaskMemberRole(taskId, userId);
+  
+  let role: "owner" | "assignee" | "watcher" | null = dbRole;
+  if (task.createdById === userId) {
+    role = "owner";
+  } else if (task.assignedToId === userId && (!role || role === "watcher")) {
+    role = "assignee";
+  }
+
   if (!role) return false;
 
   const roleOrder = { owner: 3, assignee: 2, watcher: 1 };

@@ -132,6 +132,19 @@ export function TaskBoardView({
     taskId: number,
     status: "todo" | "in_progress" | "completed"
   ) => {
+    const task = tasks.find((t) => t.id === taskId)
+    if (task) {
+      const isOwner = task.createdById === currentUserId
+      const isAssignee = task.assignedToId === currentUserId
+      const member = task.members?.find((m) => m.userId === currentUserId)
+      const hasMemberPermission = member && (member.role === "owner" || member.role === "assignee")
+
+      if (!isOwner && !isAssignee && !hasMemberPermission) {
+        toast.error(t("tasks.noPermission", "Bạn không có quyền thực hiện thao tác này"))
+        return
+      }
+    }
+
     try {
       await updateTaskMutation.mutateAsync({ taskId, payload: { status } })
       toast.success(t("tasks.statusUpdated", "Đã cập nhật trạng thái"))
@@ -142,6 +155,18 @@ export function TaskBoardView({
   }
 
   const handleUpdateTaskDueDate = async (taskId: number, dueDate: string | null) => {
+    const task = tasks.find((t) => t.id === taskId)
+    if (task) {
+      const isOwner = task.createdById === currentUserId
+      const member = task.members?.find((m) => m.userId === currentUserId)
+      const hasOwnerPermission = member && member.role === "owner"
+
+      if (!isOwner && !hasOwnerPermission) {
+        toast.error(t("tasks.noPermission", "Bạn không có quyền thực hiện thao tác này"))
+        return
+      }
+    }
+
     try {
       await updateTaskMutation.mutateAsync({ taskId, payload: { dueDate } })
       toast.success(t("tasks.dueDateUpdated", "Đã cập nhật hạn chót"))
