@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom"
 import { LoginPage, RegisterPage } from "@/features/auth"
 import { ChatView } from "@/features/chat"
 import { HomeScreen, RequestsPage } from "@/features/home"
+import { NotificationsPage } from "@/features/notifications"
 
 import { AppLayout } from "../layouts/app-layout"
 
@@ -56,6 +57,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <AppLayout>
           <RequestsPage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/notifications",
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <NotificationsPage />
         </AppLayout>
       </ProtectedRoute>
     ),

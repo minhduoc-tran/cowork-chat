@@ -15,6 +15,7 @@ import { ApiError } from "../utils/api-error";
 import { conversationService } from "./conversation.service";
 import { extractFirstUrl, unfurlUrl } from "../utils/unfurl.util";
 import { socketEmitter } from "../socket/socket-emitter";
+import { notificationService } from "./notification.service";
 
 export type MessageReactionWithUser = MessageReaction & {
   user: {
@@ -264,7 +265,9 @@ async function validateTaskMentions(
       throw ApiError.notFound("Conversation not found");
     }
     if (conversation.type !== "group") {
-      throw ApiError.badRequest("Task mentions are only supported in group conversations");
+      throw ApiError.badRequest(
+        "Task mentions are only supported in group conversations"
+      );
     }
 
     for (const match of matches) {
@@ -276,7 +279,9 @@ async function validateTaskMentions(
         throw ApiError.badRequest(`Task with ID ${taskId} does not exist`);
       }
       if (task.conversationId !== conversationId) {
-        throw ApiError.badRequest(`Task with ID ${taskId} does not belong to this conversation`);
+        throw ApiError.badRequest(
+          `Task with ID ${taskId} does not belong to this conversation`
+        );
       }
     }
   }
@@ -298,7 +303,11 @@ async function sendConversationTextMessage(
     throw ApiError.notFound("Conversation not found");
   }
 
-  await validateTaskMentions(input.content, input.conversationId, input.senderId);
+  await validateTaskMentions(
+    input.content,
+    input.conversationId,
+    input.senderId
+  );
 
   // Validate replyToId if provided
   let replyPreview: MessageReplyPreview | null = null;
@@ -347,6 +356,37 @@ async function sendConversationTextMessage(
     replyPreview
   );
 
+  // Notify users @mentioned in the message (group conversations only).
+  if (conversation.type === "group") {
+    void (async () => {
+      try {
+        const memberInfos =
+          await conversationService.listActiveConversationMembersBasic(
+            input.conversationId
+          );
+        const mentionedIds = notificationService
+          .parseMentionedUserIds(input.content, memberInfos)
+          .filter(id => id !== input.senderId);
+
+        for (const mentionedId of mentionedIds) {
+          await notificationService.createNotification({
+            userId: mentionedId,
+            actorId: input.senderId,
+            type: "message_mention",
+            data: {
+              conversationId: input.conversationId,
+              messageId: message.id,
+              conversationName: conversation.name,
+              preview: notificationService.buildPreview(input.content)
+            }
+          });
+        }
+      } catch {
+        // Mention notifications are best-effort; ignore failures.
+      }
+    })();
+  }
+
   return {
     conversation,
     members,
@@ -357,7 +397,9 @@ async function sendConversationTextMessage(
 
 async function sendDirectTextMessage(input: SendDirectTextMessageInput) {
   if (/\[\[task:\d+\|[\s\S]*?\]\]/.test(input.content)) {
-    throw ApiError.badRequest("Task mentions are not supported in direct messages");
+    throw ApiError.badRequest(
+      "Task mentions are not supported in direct messages"
+    );
   }
 
   const targetUser = await db.query.usersTable.findFirst({

@@ -1,14 +1,14 @@
 import * as React from "react"
 import { LoaderIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
+import { useTasks } from "@/shared/api"
 import {
   useDisbandGroup,
   useLeaveGroup,
 } from "@/shared/api/features/conversation/hooks"
-import { useTasks } from "@/shared/api"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -18,12 +18,7 @@ import {
 } from "@/shared/ui/alert-dialog"
 import { Button } from "@/shared/ui/button"
 import { EditGroupDialog } from "@/shared/ui/edit-group-dialog"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/shared/ui/sheet"
 import { UserProfileDialog } from "@/shared/ui/user-profile-dialog"
 
 import { useChat } from "../lib/use-chat"
@@ -39,6 +34,7 @@ import { TaskBoardView } from "./task-board-view"
 export function ChatView() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const {
     friend,
     isLoading,
@@ -85,7 +81,9 @@ export function ChatView() {
   } = useChat()
 
   const [tasksOpen, setTasksOpen] = React.useState(false)
-  const [pendingOpenTaskId, setPendingOpenTaskId] = React.useState<number | null>(null)
+  const [pendingOpenTaskId, setPendingOpenTaskId] = React.useState<
+    number | null
+  >(null)
 
   const activeConversationId = activeConversation?.conversation?.id ?? null
   const isGroup = activeConversation?.conversation?.type === "group"
@@ -122,6 +120,25 @@ export function ChatView() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTasksOpen(false)
   }, [targetUserId])
+
+  // Open the task sheet when navigated here with a ?task=<id> param
+  // (e.g. from a notification). Clear the param after consuming it.
+  React.useEffect(() => {
+    const taskParam = searchParams.get("task")
+    if (!taskParam) return
+
+    const taskId = Number(taskParam)
+    if (!Number.isNaN(taskId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingOpenTaskId(taskId)
+       
+      setTasksOpen(true)
+    }
+
+    const next = new URLSearchParams(searchParams)
+    next.delete("task")
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const handleToggleSidebar = React.useCallback(() => {
     setSidebarOpen((prev) => {
@@ -353,15 +370,15 @@ export function ChatView() {
       <Sheet open={tasksOpen} onOpenChange={setTasksOpen}>
         <SheetContent
           side="right"
-          className="!w-full sm:!max-w-full p-0 flex flex-col h-full bg-background border-l"
+          className="flex h-full !w-full flex-col border-l bg-background p-0 sm:!max-w-full"
           showCloseButton={true}
         >
-          <SheetHeader className="px-6 py-4 border-b shrink-0 flex flex-row items-center justify-between">
+          <SheetHeader className="flex shrink-0 flex-row items-center justify-between border-b px-6 py-4">
             <SheetTitle className="text-base font-semibold">
               {t("tasks.management", "Quản lý công việc")}
             </SheetTitle>
           </SheetHeader>
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <TaskBoardView
               conversationId={activeConversation?.conversation?.id ?? null}
               isGroup={activeConversation?.conversation?.type === "group"}

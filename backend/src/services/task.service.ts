@@ -25,6 +25,7 @@ import {
 import { ApiError } from "../utils/api-error";
 import { conversationService } from "./conversation.service";
 import { socketEmitter } from "../socket/socket-emitter";
+import { notificationService } from "./notification.service";
 
 async function getRecipientUserIds(
   conversationId: number | null,
@@ -37,7 +38,10 @@ async function getRecipientUserIds(
 }
 
 // Permission Helper Functions
-async function getTaskMemberRole(taskId: number, userId: number): Promise<"owner" | "assignee" | "watcher" | null> {
+async function getTaskMemberRole(
+  taskId: number,
+  userId: number
+): Promise<"owner" | "assignee" | "watcher" | null> {
   const member = await db.query.taskMembersTable.findFirst({
     where: and(
       eq(taskMembersTable.taskId, taskId),
@@ -62,7 +66,7 @@ async function checkTaskPermission(
   if (!task) return false;
 
   const dbRole = await getTaskMemberRole(taskId, userId);
-  
+
   let role: "owner" | "assignee" | "watcher" | null = dbRole;
   if (task.createdById === userId) {
     role = "owner";
@@ -203,7 +207,9 @@ function buildFilters(queryParams: Record<string, any>) {
         const low = isNumeric ? Number(parts[0]) : parts[0];
         const high = isNumeric ? Number(parts[1]) : parts[1];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        conditions.push(sql`${tableColumn} >= ${low} AND ${tableColumn} <= ${high}` as any);
+        conditions.push(
+          sql`${tableColumn} >= ${low} AND ${tableColumn} <= ${high}` as any
+        );
       }
     }
   };
@@ -296,13 +302,11 @@ async function listTasks(input: {
       }
     });
   } else {
-    // Personal tasks: created by or assigned to current user, and conversationId is null
-    let whereClause: SQL | undefined = and(
-      isNull(tasksTable.conversationId),
-      or(
-        eq(tasksTable.createdById, input.userId),
-        eq(tasksTable.assignedToId, input.userId)
-      )
+    // Personal scope ("My tasks"): every task the user owns or is assigned to,
+    // regardless of whether it lives in a group conversation or is standalone.
+    let whereClause: SQL | undefined = or(
+      eq(tasksTable.createdById, input.userId),
+      eq(tasksTable.assignedToId, input.userId)
     );
 
     if (searchVal) {
@@ -384,7 +388,7 @@ async function createTask(input: {
 
   // Find max position for status in this scope to compute the next position
   let maxPosition = 0;
-  
+
   if (input.conversationId) {
     const lastTask = await db.query.tasksTable.findFirst({
       where: and(
@@ -455,6 +459,21 @@ async function createTask(input: {
   );
   socketEmitter.emitTaskCreated(task.conversationId, userIds, task);
 
+  // Notify the assignee (if any and not the creator) that a task was assigned.
+  if (input.assignedToId && input.assignedToId !== input.createdById) {
+    void notificationService.createNotification({
+      userId: input.assignedToId,
+      actorId: input.createdById,
+      type: "task_assigned",
+      data: {
+        taskId: task.id,
+        conversationId: task.conversationId,
+        taskTitle: task.title,
+        preview: notificationService.buildPreview(task.title)
+      }
+    });
+  }
+
   return task;
 }
 
@@ -494,8 +513,10 @@ async function updateTask(
       data.dueDate !== undefined ||
       data.assignedToId !== undefined;
 
-    const isStatusUpdate = data.status !== undefined || data.position !== undefined;
-    const isEstimateUpdate = data.estimatedValue !== undefined || data.estimatedUnit !== undefined;
+    const isStatusUpdate =
+      data.status !== undefined || data.position !== undefined;
+    const isEstimateUpdate =
+      data.estimatedValue !== undefined || data.estimatedUnit !== undefined;
 
     if (isCriticalFieldUpdate) {
       await requireTaskPermission(taskId, userId, "owner");
@@ -526,8 +547,7 @@ async function updateTask(
     updateFields.estimatedValue = data.estimatedValue;
   if (data.estimatedUnit !== undefined)
     updateFields.estimatedUnit = data.estimatedUnit;
-  if (data.position !== undefined)
-    updateFields.position = data.position;
+  if (data.position !== undefined) updateFields.position = data.position;
 
   await db
     .update(tasksTable)
@@ -548,6 +568,26 @@ async function updateTask(
     userIds,
     updatedTask
   );
+
+  // Notify the new assignee when assignment changes to a different user.
+  if (
+    data.assignedToId !== undefined &&
+    data.assignedToId !== null &&
+    data.assignedToId !== task.assignedToId &&
+    data.assignedToId !== userId
+  ) {
+    void notificationService.createNotification({
+      userId: data.assignedToId,
+      actorId: userId,
+      type: "task_assigned",
+      data: {
+        taskId: updatedTask.id,
+        conversationId: updatedTask.conversationId,
+        taskTitle: updatedTask.title,
+        preview: notificationService.buildPreview(updatedTask.title)
+      }
+    });
+  }
 
   return updatedTask;
 }
@@ -774,7 +814,10 @@ async function addTaskMember(
   if (!task) throw ApiError.notFound("Task not found");
 
   if (task.conversationId) {
-    await conversationService.ensureActiveConversationMember(task.conversationId, userId);
+    await conversationService.ensureActiveConversationMember(
+      task.conversationId,
+      userId
+    );
     await requireTaskPermission(taskId, requestingUserId, "owner");
   }
 
@@ -796,19 +839,39 @@ async function addTaskMember(
       .update(tasksTable)
       .set({ assignedToId: userId })
       .where(eq(tasksTable.id, taskId));
+
+    // Notify the newly assigned member.
+    void notificationService.createNotification({
+      userId,
+      actorId: requestingUserId,
+      type: "task_assigned",
+      data: {
+        taskId: task.id,
+        conversationId: task.conversationId,
+        taskTitle: task.title,
+        preview: notificationService.buildPreview(task.title)
+      }
+    });
   }
 
   return member;
 }
 
-async function removeTaskMember(taskId: number, memberUserId: number, requestingUserId: number) {
+async function removeTaskMember(
+  taskId: number,
+  memberUserId: number,
+  requestingUserId: number
+) {
   const task = await db.query.tasksTable.findFirst({
     where: eq(tasksTable.id, taskId)
   });
   if (!task) throw ApiError.notFound("Task not found");
 
   if (task.conversationId) {
-    await conversationService.ensureActiveConversationMember(task.conversationId, requestingUserId);
+    await conversationService.ensureActiveConversationMember(
+      task.conversationId,
+      requestingUserId
+    );
     await requireTaskPermission(taskId, requestingUserId, "owner");
   }
 
@@ -865,7 +928,10 @@ async function updateTaskMemberRole(
   if (!task) throw ApiError.notFound("Task not found");
 
   if (task.conversationId) {
-    await conversationService.ensureActiveConversationMember(task.conversationId, requestingUserId);
+    await conversationService.ensureActiveConversationMember(
+      task.conversationId,
+      requestingUserId
+    );
     await requireTaskPermission(taskId, requestingUserId, "owner");
   }
 
@@ -892,6 +958,21 @@ async function updateTaskMemberRole(
       .update(tasksTable)
       .set({ assignedToId: memberUserId })
       .where(eq(tasksTable.id, taskId));
+
+    // Notify the member who just became the assignee.
+    if (memberUserId !== requestingUserId) {
+      void notificationService.createNotification({
+        userId: memberUserId,
+        actorId: requestingUserId,
+        type: "task_assigned",
+        data: {
+          taskId: task.id,
+          conversationId: task.conversationId,
+          taskTitle: task.title,
+          preview: notificationService.buildPreview(task.title)
+        }
+      });
+    }
   } else if (oldRole === "assignee" && newRole === "watcher") {
     const nextAssignee = await db.query.taskMembersTable.findFirst({
       where: and(
@@ -918,7 +999,10 @@ async function createConversationTag(
   userId: number,
   data: { name: string; color: string; icon?: string }
 ) {
-  await conversationService.ensureActiveConversationMember(conversationId, userId);
+  await conversationService.ensureActiveConversationMember(
+    conversationId,
+    userId
+  );
 
   const existing = await db.query.conversationTagsTable.findFirst({
     where: and(
@@ -926,7 +1010,8 @@ async function createConversationTag(
       ilike(conversationTagsTable.name, data.name)
     )
   });
-  if (existing) throw ApiError.conflict("Tag name already exists in this conversation");
+  if (existing)
+    throw ApiError.conflict("Tag name already exists in this conversation");
 
   const [tag] = await db
     .insert(conversationTagsTable)
@@ -953,9 +1038,14 @@ async function deleteConversationTag(tagId: number, userId: number) {
   });
   if (!tag) throw ApiError.notFound("Tag not found");
 
-  await conversationService.ensureActiveConversationMember(tag.conversationId, userId);
+  await conversationService.ensureActiveConversationMember(
+    tag.conversationId,
+    userId
+  );
 
-  await db.delete(conversationTagsTable).where(eq(conversationTagsTable.id, tagId));
+  await db
+    .delete(conversationTagsTable)
+    .where(eq(conversationTagsTable.id, tagId));
   return { success: true };
 }
 
@@ -966,7 +1056,10 @@ async function addTagToTask(taskId: number, tagId: number, userId: number) {
   if (!task) throw ApiError.notFound("Task not found");
 
   if (task.conversationId) {
-    await conversationService.ensureActiveConversationMember(task.conversationId, userId);
+    await conversationService.ensureActiveConversationMember(
+      task.conversationId,
+      userId
+    );
     await requireTaskPermission(taskId, userId, "assignee");
   }
 
@@ -979,10 +1072,7 @@ async function addTagToTask(taskId: number, tagId: number, userId: number) {
   }
 
   const existing = await db.query.taskTagsTable.findFirst({
-    where: and(
-      eq(taskTagsTable.taskId, taskId),
-      eq(taskTagsTable.tagId, tagId)
-    )
+    where: and(eq(taskTagsTable.taskId, taskId), eq(taskTagsTable.tagId, tagId))
   });
   if (existing) throw ApiError.conflict("Tag already assigned to task");
 
@@ -993,22 +1083,26 @@ async function addTagToTask(taskId: number, tagId: number, userId: number) {
   return taskTag;
 }
 
-async function removeTagFromTask(taskId: number, tagId: number, userId: number) {
+async function removeTagFromTask(
+  taskId: number,
+  tagId: number,
+  userId: number
+) {
   const task = await db.query.tasksTable.findFirst({
     where: eq(tasksTable.id, taskId)
   });
   if (!task) throw ApiError.notFound("Task not found");
 
   if (task.conversationId) {
-    await conversationService.ensureActiveConversationMember(task.conversationId, userId);
+    await conversationService.ensureActiveConversationMember(
+      task.conversationId,
+      userId
+    );
     await requireTaskPermission(taskId, userId, "assignee");
   }
 
   const taskTag = await db.query.taskTagsTable.findFirst({
-    where: and(
-      eq(taskTagsTable.taskId, taskId),
-      eq(taskTagsTable.tagId, tagId)
-    )
+    where: and(eq(taskTagsTable.taskId, taskId), eq(taskTagsTable.tagId, tagId))
   });
   if (!taskTag) throw ApiError.notFound("Tag not assigned to this task");
 
@@ -1040,7 +1134,10 @@ async function createComment(
   let isTaskMember = false;
   if (task.conversationId) {
     try {
-      await conversationService.ensureActiveConversationMember(task.conversationId, authorId);
+      await conversationService.ensureActiveConversationMember(
+        task.conversationId,
+        authorId
+      );
       isTaskMember = true;
     } catch {
       // Not a conversation member - check if user is a task member
@@ -1048,12 +1145,16 @@ async function createComment(
       if (memberRole) {
         isTaskMember = true;
       } else {
-        throw ApiError.forbidden("You do not have permission to comment on this task");
+        throw ApiError.forbidden(
+          "You do not have permission to comment on this task"
+        );
       }
     }
   } else {
     if (task.createdById !== authorId && task.assignedToId !== authorId) {
-      throw ApiError.forbidden("You do not have permission to comment on this task");
+      throw ApiError.forbidden(
+        "You do not have permission to comment on this task"
+      );
     }
   }
 
@@ -1068,7 +1169,9 @@ async function createComment(
     if (!parentComment) throw ApiError.notFound("Parent comment not found");
     // Ensure parent is not itself a reply (single-level threading)
     if (parentComment.parentId !== null) {
-      throw ApiError.badRequest("Cannot reply to a reply (only single-level threading supported)");
+      throw ApiError.badRequest(
+        "Cannot reply to a reply (only single-level threading supported)"
+      );
     }
   }
 
@@ -1092,8 +1195,37 @@ async function createComment(
     }
   });
 
-  const userIds = await getRecipientUserIds(task.conversationId, task.createdById);
+  const userIds = await getRecipientUserIds(
+    task.conversationId,
+    task.createdById
+  );
   socketEmitter.emitTaskCommentCreated(task.conversationId, userIds, result!);
+
+  // Notify users @mentioned in the comment.
+  if (task.conversationId) {
+    const members =
+      await conversationService.listActiveConversationMembersBasic(
+        task.conversationId
+      );
+    const mentionedIds = notificationService
+      .parseMentionedUserIds(content, members)
+      .filter(id => id !== authorId);
+
+    for (const mentionedId of mentionedIds) {
+      void notificationService.createNotification({
+        userId: mentionedId,
+        actorId: authorId,
+        type: "task_mention",
+        data: {
+          taskId: task.id,
+          conversationId: task.conversationId,
+          commentId: comment.id,
+          taskTitle: task.title,
+          preview: notificationService.buildPreview(content)
+        }
+      });
+    }
+  }
 
   return result;
 }
@@ -1178,7 +1310,10 @@ async function updateComment(
     }
   });
 
-  const userIds = await getRecipientUserIds(task.conversationId, task.createdById);
+  const userIds = await getRecipientUserIds(
+    task.conversationId,
+    task.createdById
+  );
   socketEmitter.emitTaskCommentUpdated(task.conversationId, userIds, result!);
 
   return result;
@@ -1218,7 +1353,10 @@ async function deleteComment(
       )
     );
 
-  const userIds = await getRecipientUserIds(task.conversationId, task.createdById);
+  const userIds = await getRecipientUserIds(
+    task.conversationId,
+    task.createdById
+  );
   socketEmitter.emitTaskCommentDeleted(task.conversationId, userIds, {
     taskId,
     commentId

@@ -83,6 +83,33 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] })
     })
 
+    // Notification received (task assigned, mention, etc.)
+    socket.on("notification.created", (payload) => {
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+
+      const actorName =
+        payload?.actor?.displayName ?? t("socket.someone", "Ai đó")
+      let message: string
+      switch (payload?.type) {
+        case "task_assigned":
+          message = t("socket.taskAssigned", {
+            name: actorName,
+            title: payload?.data?.taskTitle ?? "",
+          })
+          break
+        case "task_mention":
+          message = t("socket.taskMention", { name: actorName })
+          break
+        case "message_mention":
+          message = t("socket.messageMention", { name: actorName })
+          break
+        default:
+          message = t("socket.newNotification", "Bạn có thông báo mới")
+      }
+
+      toast.info(message)
+    })
+
     return () => {
       disconnectSocket()
     }

@@ -118,3 +118,26 @@ export type MessageDeletedPayload = {
   conversationId: number;
   messageId: number;
 };
+
+export type NotificationCreatedPayload = {
+  id: number;
+  userId: number;
+  actorId: number | null;
+  type: string;
+  data: {
+    conversationId?: number | null;
+    taskId?: number | null;
+    messageId?: number | null;
+    commentId?: number | null;
+    taskTitle?: string | null;
+    conversationName?: string | null;
+    preview?: string | null;
+  } | null;
+  isRead: boolean;
+  createdAt: Date;
+  actor: {
+    id: number;
+    displayName: string;
+    avatar: string | null;
+  } | null;
+};

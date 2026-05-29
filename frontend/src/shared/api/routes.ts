@@ -41,3 +41,9 @@ export const TASK_ROUTES = {
   SUBTASK_DETAIL: "/api/v1/tasks/:taskId/subtasks/:subtaskId",
 } as const
 
+export const NOTIFICATION_ROUTES = {
+  LIST: "/api/v1/notifications",
+  UNREAD_COUNT: "/api/v1/notifications/unread-count",
+  READ_ALL: "/api/v1/notifications/read-all",
+  MARK_READ: "/api/v1/notifications/:notificationId/read",
+} as const

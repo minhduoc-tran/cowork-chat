@@ -5,6 +5,7 @@ import friendRoutes from "./friend.routes";
 import conversationRoutes from "./conversation.routes";
 import userRoutes from "./user.routes";
 import taskRoutes from "./task.routes";
+import notificationRoutes from "./notification.routes";
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use("/friends", friendRoutes);
 router.use("/conversations", conversationRoutes);
 router.use("/users", userRoutes);
 router.use("/tasks", taskRoutes);
+router.use("/notifications", notificationRoutes);
 
 export default router;

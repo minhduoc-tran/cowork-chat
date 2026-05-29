@@ -9,7 +9,8 @@ import type {
   TypingUpdatedPayload,
   MessageUpdatedPayload,
   ConversationPinPayload,
-  MessageDeletedPayload
+  MessageDeletedPayload,
+  NotificationCreatedPayload
 } from "../types/socket.types";
 
 export const socketEmitter = {
@@ -193,7 +194,10 @@ export const socketEmitter = {
   ) {
     const io = getSocketServer();
     if (conversationId) {
-      io.to(`conversation:${conversationId}`).emit("task.comment.created", payload);
+      io.to(`conversation:${conversationId}`).emit(
+        "task.comment.created",
+        payload
+      );
     }
     userIds.forEach(userId => {
       io.to(`user:${userId}`).emit("task.comment.created", payload);
@@ -207,7 +211,10 @@ export const socketEmitter = {
   ) {
     const io = getSocketServer();
     if (conversationId) {
-      io.to(`conversation:${conversationId}`).emit("task.comment.updated", payload);
+      io.to(`conversation:${conversationId}`).emit(
+        "task.comment.updated",
+        payload
+      );
     }
     userIds.forEach(userId => {
       io.to(`user:${userId}`).emit("task.comment.updated", payload);
@@ -221,10 +228,19 @@ export const socketEmitter = {
   ) {
     const io = getSocketServer();
     if (conversationId) {
-      io.to(`conversation:${conversationId}`).emit("task.comment.deleted", payload);
+      io.to(`conversation:${conversationId}`).emit(
+        "task.comment.deleted",
+        payload
+      );
     }
     userIds.forEach(userId => {
       io.to(`user:${userId}`).emit("task.comment.deleted", payload);
     });
+  },
+
+  emitNotificationCreated(userId: number, payload: NotificationCreatedPayload) {
+    getSocketServer()
+      .to(`user:${userId}`)
+      .emit("notification.created", payload);
   }
 };

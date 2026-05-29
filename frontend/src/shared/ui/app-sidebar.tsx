@@ -3,6 +3,8 @@
 import * as React from "react"
 import {
   ArchiveXIcon,
+  BellIcon,
+  CheckCheckIcon,
   FileIcon,
   MessageCircleIcon,
   SendIcon,
@@ -16,7 +18,13 @@ import { Link, useLocation } from "react-router-dom"
 import { useAuthStore } from "@/features/auth"
 
 import type { ConversationListItem } from "@/shared/api"
-import { useConversations, useFriends } from "@/shared/api"
+import {
+  useConversations,
+  useFriends,
+  useMarkAllNotificationsRead,
+  useNotifications,
+  useUnreadNotificationCount,
+} from "@/shared/api"
 import { type NavUserProfile } from "@/shared/lib/nav-user.utils"
 import { cn } from "@/shared/lib/utils"
 import { AddFriendDialog } from "@/shared/ui/add-friend-dialog"
@@ -24,6 +32,7 @@ import { getConversationPreviewText } from "@/shared/ui/app-sidebar-preview"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { CreateGroupDialog } from "@/shared/ui/create-group-dialog"
 import { NavUser } from "@/shared/ui/nav-user"
+import { NotificationItem } from "@/shared/ui/notification-item"
 import {
   Sidebar,
   SidebarContent,
@@ -73,6 +82,11 @@ const navMain = [
     titleKey: "nav.requests",
     url: "/requests",
     icon: <UserPlusIcon />,
+  },
+  {
+    titleKey: "nav.notifications",
+    url: "/notifications",
+    icon: <BellIcon />,
   },
 ]
 
@@ -347,6 +361,52 @@ function RequestsPanel() {
   )
 }
 
+function NotificationsPanel({ onNavigate }: { onNavigate?: () => void }) {
+  const { t } = useTranslation()
+  const { data, isLoading } = useNotifications()
+  const markAllRead = useMarkAllNotificationsRead()
+
+  if (isLoading) return <ConversationListSkeleton />
+
+  const notifications = data?.notifications ?? []
+  const unreadCount = data?.unreadCount ?? 0
+
+  if (notifications.length === 0) {
+    return (
+      <div className="p-4 text-center text-sm text-muted-foreground">
+        {t("notifications.empty")}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col">
+      {unreadCount > 0 && (
+        <div className="flex justify-end border-b px-3 py-2">
+          <button
+            type="button"
+            onClick={() => markAllRead.mutate()}
+            disabled={markAllRead.isPending}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <CheckCheckIcon className="size-3.5" />
+            {t("notifications.markAllRead")}
+          </button>
+        </div>
+      )}
+      <div className="divide-y">
+        {notifications.map((notification) => (
+          <NotificationItem
+            key={notification.id}
+            notification={notification}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function AppSidebar({ user }: { user: NavUserProfile | null }) {
   const location = useLocation()
   const currentPath = `/${location.pathname.split("/")[1]}`
@@ -357,6 +417,7 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
   const { t } = useTranslation()
   const [isAddFriendOpen, setIsAddFriendOpen] = React.useState(false)
   const [isCreateGroupOpen, setIsCreateGroupOpen] = React.useState(false)
+  const { data: unreadCount = 0 } = useUnreadNotificationCount()
 
   return (
     <aside className="hidden h-svh w-[calc(var(--sidebar-width-icon)+1px+20rem)] shrink-0 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex">
@@ -404,7 +465,15 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
                         asChild
                       >
                         <Link to={item.url}>
-                          {item.icon}
+                          <span className="relative">
+                            {item.icon}
+                            {item.url === "/notifications" &&
+                              unreadCount > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                                  {unreadCount > 99 ? "99+" : unreadCount}
+                                </span>
+                              )}
+                          </span>
                           <span>{t(item.titleKey)}</span>
                         </Link>
                       </SidebarMenuButton>
@@ -453,6 +522,8 @@ export function AppSidebar({ user }: { user: NavUserProfile | null }) {
                 <FriendsPanel />
               ) : currentPath === "/requests" ? (
                 <RequestsPanel />
+              ) : currentPath === "/notifications" ? (
+                <NotificationsPanel />
               ) : (
                 <ConversationsPanel currentUserId={currentUserId} />
               )}
