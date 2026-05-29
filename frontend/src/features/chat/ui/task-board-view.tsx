@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
 import type { Task } from "@/shared/api"
-import { useTasks, useUpdateTask, taskApi } from "@/shared/api"
+import { useTasks, useUpdateTask, taskApi, useTaskStatuses, useCreateTaskStatus, useUpdateTaskStatus, useDeleteTaskStatus } from "@/shared/api"
 import { cn } from "@/shared/lib/utils"
 import { Button } from "@/shared/ui/button"
 import { FilterProvider, FilterRoot } from "@/shared/ui/conditional-filter"
@@ -44,6 +44,35 @@ export function TaskBoardView({
 }: TaskBoardViewProps) {
   const { t } = useTranslation()
 
+  // State
+  const [viewMode, setViewMode] = React.useState<"board" | "table" | "calendar">("board")
+  const [taskScope, setTaskScope] = React.useState<"group" | "personal">(() =>
+    isGroup && conversationId ? "group" : "personal"
+  )
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [createModalOpen, setCreateModalOpen] = React.useState(false)
+  const [prefilledDueDate, setPrefilledDueDate] = React.useState<string | null>(null)
+  const [prefilledStatusKey, setPrefilledStatusKey] = React.useState<string | null>(null)
+  const [selectedTask, setSelectedTask] = React.useState<Task | null>(null)
+
+  // Sync taskScope when changing conversations
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTaskScope(isGroup && conversationId ? "group" : "personal")
+    setSearchQuery("")
+    setSelectedTask(null)
+  }, [conversationId, isGroup])
+
+  // Queries & Mutations
+  const activeQueryConversationId = taskScope === "group" ? conversationId : null
+  const { data: tasks = [], isLoading } = useTasks(activeQueryConversationId)
+  const { data: statuses = [] } = useTaskStatuses(activeQueryConversationId)
+  const updateTaskMutation = useUpdateTask()
+
+  const createStatusMutation = useCreateTaskStatus()
+  const updateStatusMutation = useUpdateTaskStatus()
+  const deleteStatusMutation = useDeleteTaskStatus()
+
   // Filter fields config
   const filterFields = React.useMemo(() => {
     return [
@@ -51,11 +80,13 @@ export function TaskBoardView({
         name: "status",
         label: t("tasks.status", "Trạng thái"),
         type: "select" as const,
-        options: [
-          { label: t("tasks.statusTodo", "Cần làm"), value: "todo" },
-          { label: t("tasks.statusInProgress", "Đng làm"), value: "in_progress" },
-          { label: t("tasks.statusCompleted", "Hoàn thành"), value: "completed" },
-        ],
+        options: statuses.length > 0
+          ? statuses.map((s) => ({ label: s.name, value: s.key }))
+          : [
+              { label: t("tasks.statusTodo", "Cần làm"), value: "todo" },
+              { label: t("tasks.statusInProgress", "Đang làm"), value: "in_progress" },
+              { label: t("tasks.statusCompleted", "Hoàn thành"), value: "completed" },
+            ],
       },
       {
         name: "priority",
@@ -82,7 +113,7 @@ export function TaskBoardView({
         })),
       },
     ]
-  }, [conversationMembers, t])
+  }, [conversationMembers, t, statuses])
 
   const filterConfig = React.useMemo(() => ({
     fields: filterFields,
@@ -91,29 +122,6 @@ export function TaskBoardView({
     paramStyle: "underscore" as const,
     searchParamName: "search",
   }), [filterFields])
-
-  // State
-  const [viewMode, setViewMode] = React.useState<"board" | "table" | "calendar">("board")
-  const [taskScope, setTaskScope] = React.useState<"group" | "personal">(() =>
-    isGroup && conversationId ? "group" : "personal"
-  )
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [createModalOpen, setCreateModalOpen] = React.useState(false)
-  const [prefilledDueDate, setPrefilledDueDate] = React.useState<string | null>(null)
-  const [selectedTask, setSelectedTask] = React.useState<Task | null>(null)
-
-  // Sync taskScope when changing conversations
-  React.useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTaskScope(isGroup && conversationId ? "group" : "personal")
-    setSearchQuery("")
-    setSelectedTask(null)
-  }, [conversationId, isGroup])
-
-  // Queries & Mutations
-  const activeQueryConversationId = taskScope === "group" ? conversationId : null
-  const { data: tasks = [], isLoading } = useTasks(activeQueryConversationId)
-  const updateTaskMutation = useUpdateTask()
 
   React.useEffect(() => {
     if (!requestedTaskId) return
@@ -184,9 +192,10 @@ export function TaskBoardView({
     return tasks.find((t) => t.id === selectedTask.id) ?? selectedTask
   }, [tasks, selectedTask])
 
-  const handleUpdateTaskStatus = async (
+  const handleUpdateTaskStatusAndPosition = async (
     taskId: number,
-    status: "todo" | "in_progress" | "completed"
+    status: "todo" | "in_progress" | "completed",
+    position?: number
   ) => {
     const task = tasks.find((t) => t.id === taskId)
     if (task) {
@@ -202,7 +211,13 @@ export function TaskBoardView({
     }
 
     try {
-      await updateTaskMutation.mutateAsync({ taskId, payload: { status } })
+      await updateTaskMutation.mutateAsync({
+        taskId,
+        payload: {
+          status,
+          ...(position !== undefined ? { position } : {}),
+        },
+      })
       toast.success(t("tasks.statusUpdated", "Đã cập nhật trạng thái"))
     } catch (err) {
       console.error(err)
@@ -344,11 +359,38 @@ export function TaskBoardView({
           ) : viewMode === "board" ? (
             <TaskBoard
               tasks={filteredTasks}
+              statuses={statuses}
               onSelectTask={setSelectedTask}
-              onUpdateTaskStatus={handleUpdateTaskStatus}
-              onAddTask={() => {
+              onUpdateTaskStatus={handleUpdateTaskStatusAndPosition}
+              onAddTask={(statusKey) => {
                 setPrefilledDueDate(null)
+                setPrefilledStatusKey(statusKey)
                 setCreateModalOpen(true)
+              }}
+              onCreateStatus={async (name, color) => {
+                if (activeQueryConversationId) {
+                  await createStatusMutation.mutateAsync({
+                    conversationId: activeQueryConversationId,
+                    payload: { name, color }
+                  })
+                }
+              }}
+              onUpdateStatus={async (statusId, payload) => {
+                if (activeQueryConversationId) {
+                  await updateStatusMutation.mutateAsync({
+                    conversationId: activeQueryConversationId,
+                    statusId,
+                    payload
+                  })
+                }
+              }}
+              onDeleteStatus={async (statusId) => {
+                if (activeQueryConversationId) {
+                  await deleteStatusMutation.mutateAsync({
+                    conversationId: activeQueryConversationId,
+                    statusId
+                  })
+                }
               }}
             />
           ) : viewMode === "table" ? (
@@ -356,7 +398,7 @@ export function TaskBoardView({
               conversationId={activeQueryConversationId}
               searchQuery={searchQuery}
               onSelectTask={setSelectedTask}
-              onUpdateTaskStatus={handleUpdateTaskStatus}
+              onUpdateTaskStatus={handleUpdateTaskStatusAndPosition}
             />
           ) : (
             <div className="h-full w-full overflow-auto">
@@ -365,6 +407,7 @@ export function TaskBoardView({
                 onSelectTask={setSelectedTask}
                 onAddTask={(dueDateStr) => {
                   setPrefilledDueDate(dueDateStr)
+                  setPrefilledStatusKey(null)
                   setCreateModalOpen(true)
                 }}
                 onUpdateTaskDueDate={handleUpdateTaskDueDate}
@@ -381,6 +424,8 @@ export function TaskBoardView({
           members={conversationMembers}
           currentUserId={currentUserId}
           initialDueDate={prefilledDueDate}
+          initialStatusKey={prefilledStatusKey}
+          statuses={statuses}
         />
 
         <TaskDetailModal
@@ -389,6 +434,7 @@ export function TaskBoardView({
           task={activeTask}
           members={conversationMembers}
           currentUserId={currentUserId}
+          statuses={statuses}
         />
       </div>
     </FilterProvider>

@@ -22,6 +22,7 @@ import {
   useUpdateComment,
   useDeleteComment
 } from "@/shared/api"
+import type { TaskStatus } from "@/shared/api"
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/shared/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/avatar"
 import { Button } from "@/shared/ui/button"
@@ -37,6 +38,7 @@ interface TaskDetailModalProps {
   task: Task | null
   members: Array<{ userId: number; displayName: string; avatar: string | null }>
   currentUserId: number
+  statuses?: TaskStatus[]
 }
 
 const priorityLabel = (p: string, t: ReturnType<typeof useTranslation>["t"]) =>
@@ -44,8 +46,25 @@ const priorityLabel = (p: string, t: ReturnType<typeof useTranslation>["t"]) =>
 const statusLabel = (s: string, t: ReturnType<typeof useTranslation>["t"]) =>
   ({ todo: t("tasks.statusTodo", "Cần làm"), in_progress: t("tasks.statusInProgress", "Đang làm"), completed: t("tasks.statusCompleted", "Hoàn thành") }[s] ?? s)
 
-export function TaskDetailModal({ open, onOpenChange, task, members, currentUserId }: TaskDetailModalProps) {
+export function TaskDetailModal({ open, onOpenChange, task, members, currentUserId, statuses }: TaskDetailModalProps) {
   const { t } = useTranslation()
+
+  const statusesList = React.useMemo(() => {
+    if (statuses && statuses.length > 0) return statuses
+    return [
+      { key: "todo", name: t("tasks.statusTodo", "Cần làm") },
+      { key: "in_progress", name: t("tasks.statusInProgress", "Đang làm") },
+      { key: "completed", name: t("tasks.statusCompleted", "Hoàn thành") }
+    ]
+  }, [statuses, t])
+
+  const priorityLabel = (p: string, t: ReturnType<typeof useTranslation>["t"]) =>
+    ({ high: t("tasks.priorityHigh", "Cao"), medium: t("tasks.priorityMedium", "Trung bình"), low: t("tasks.priorityLow", "Thấp") }[p] ?? p)
+
+  const getStatusName = (s: string) => {
+    const found = statusesList.find(item => item.key === s)
+    return found ? found.name : s
+  }
   const updateTaskMutation = useUpdateTask()
   const deleteTaskMutation = useDeleteTask()
   const createSubtaskMutation = useCreateSubtask()
@@ -568,8 +587,8 @@ export function TaskDetailModal({ open, onOpenChange, task, members, currentUser
                       disabled={!canModifyStatusAndHours}
                       className="notion-property-select"
                     >
-                      {(["todo", "in_progress", "completed"] as const).map((s) => (
-                        <option key={s} value={s}>{statusLabel(s, t)}</option>
+                      {statusesList.map((s) => (
+                        <option key={s.key} value={s.key}>{s.name}</option>
                       ))}
                     </select>
                   </div>

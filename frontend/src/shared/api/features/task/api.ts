@@ -14,6 +14,9 @@ import type {
   TaskComment,
   CreateCommentPayload,
   UpdateCommentPayload,
+  TaskStatus,
+  CreateTaskStatusPayload,
+  UpdateTaskStatusPayload,
 } from "./types"
 
 export const taskApi = {
@@ -118,4 +121,17 @@ export const taskApi = {
 
   deleteComment: (taskId: number, commentId: number) =>
     apiClient.delete<ApiResponse<{ success: boolean }>>(`/api/v1/tasks/${taskId}/comments/${commentId}`),
+
+  // Task Status Management API
+  listStatuses: (conversationId: number | null) =>
+    apiClient.get<ApiResponse<TaskStatus[]>>(`/api/v1/conversations/${conversationId ?? 0}/task-statuses`),
+
+  createStatus: (conversationId: number, data: CreateTaskStatusPayload) =>
+    apiClient.post<ApiResponse<TaskStatus>>(`/api/v1/conversations/${conversationId}/task-statuses`, data),
+
+  updateStatus: (conversationId: number, statusId: number, data: UpdateTaskStatusPayload) =>
+    apiClient.patch<ApiResponse<TaskStatus>>(`/api/v1/conversations/${conversationId}/task-statuses/${statusId}`, data),
+
+  deleteStatus: (conversationId: number, statusId: number) =>
+    apiClient.delete<ApiResponse<{ success: boolean }>>(`/api/v1/conversations/${conversationId}/task-statuses/${statusId}`),
 }

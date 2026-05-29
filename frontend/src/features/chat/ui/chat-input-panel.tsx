@@ -14,6 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover"
 import type { ChatMessage } from "../lib/chat-utils"
 import { getMessagePreview } from "../lib/chat-utils"
 
+const COMMANDS = [
+  { command: "task", description: "Gán công việc" },
+]
+
 const stripHtml = (html: string) => {
   return html.replace(/<[^>]*>/g, "")
 }
@@ -71,6 +75,12 @@ export function ChatInputPanel({
   const [activeTaskSuggestionIndex, setActiveTaskSuggestionIndex] = React.useState(0)
   const [taskTriggerIndex, setTaskTriggerIndex] = React.useState(-1)
 
+  // Command mentions state
+  const [showCommandSuggestions, setShowCommandSuggestions] = React.useState(false)
+  const [commandSuggestions, setCommandSuggestions] = React.useState<typeof COMMANDS>([])
+  const [activeCommandSuggestionIndex, setActiveCommandSuggestionIndex] = React.useState(0)
+  const [commandTriggerIndex, setCommandTriggerIndex] = React.useState(-1)
+
   const isGroup = activeConversation?.conversation?.type === "group"
   const activeConversationId = activeConversation?.conversation?.id ?? null
 
@@ -112,7 +122,8 @@ export function ChatInputPanel({
       if (selectionStart === null)
         return { active: false, search: "", index: -1 }
       const textBeforeCursor = text.slice(0, selectionStart)
-      const lastTaskIndex = textBeforeCursor.lastIndexOf("/task ")
+      
+      const lastTaskIndex = textBeforeCursor.lastIndexOf("/task")
       if (lastTaskIndex === -1) return { active: false, search: "", index: -1 }
 
       // Check if /task is preceded by a space or is at the start of the string
@@ -122,16 +133,58 @@ export function ChatInputPanel({
         return { active: false, search: "", index: -1 }
       }
 
+      const textAfterTrigger = textBeforeCursor.slice(lastTaskIndex + 5)
+      
+      // If there's text right after /task that isn't a space, it's invalid (e.g. /tasking)
+      if (textAfterTrigger.length > 0 && textAfterTrigger[0] !== " ") {
+        return { active: false, search: "", index: -1 }
+      }
+
       // Check if there is any / or @ after /task
-      const textBetweenTriggerAndCursor = textBeforeCursor.slice(lastTaskIndex + 6)
-      if (textBetweenTriggerAndCursor.includes("/") || textBetweenTriggerAndCursor.includes("@")) {
+      if (textAfterTrigger.includes("/") || textAfterTrigger.includes("@")) {
+        return { active: false, search: "", index: -1 }
+      }
+
+      const search = textAfterTrigger.startsWith(" ") 
+        ? textAfterTrigger.slice(1) 
+        : textAfterTrigger
+
+      return {
+        active: true,
+        search,
+        index: lastTaskIndex,
+      }
+    },
+    []
+  )
+
+  const getCommandSearch = React.useCallback(
+    (text: string, selectionStart: number | null) => {
+      if (selectionStart === null)
+        return { active: false, search: "", index: -1 }
+      const textBeforeCursor = text.slice(0, selectionStart)
+      
+      const lastSlashIndex = textBeforeCursor.lastIndexOf("/")
+      if (lastSlashIndex === -1) return { active: false, search: "", index: -1 }
+
+      // Check if / is preceded by a space or is at the start of the string
+      const charBeforeSlash =
+        lastSlashIndex > 0 ? textBeforeCursor[lastSlashIndex - 1] : ""
+      if (charBeforeSlash !== "" && charBeforeSlash !== " ") {
+        return { active: false, search: "", index: -1 }
+      }
+
+      const textAfterTrigger = textBeforeCursor.slice(lastSlashIndex + 1)
+      
+      // If there is a space after slash, it is not a command search anymore
+      if (textAfterTrigger.includes(" ")) {
         return { active: false, search: "", index: -1 }
       }
 
       return {
         active: true,
-        search: textBetweenTriggerAndCursor,
-        index: lastTaskIndex,
+        search: textAfterTrigger,
+        index: lastSlashIndex,
       }
     },
     []
@@ -195,14 +248,10 @@ export function ChatInputPanel({
     [input, setInput, taskTriggerIndex, setTaskMentions]
   )
 
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleInputChange(e)
-
-    const value = e.target.value
-    const caret = e.target.selectionStart ?? 0
-
+  const updateSuggestions = (value: string, caret: number) => {
     const memberSearchResult = getTagSearch(value, caret)
     const taskSearchResult = getTaskSearch(value, caret)
+    const commandSearchResult = getCommandSearch(value, caret)
 
     if (memberSearchResult.active && isGroup && activeConversation?.members) {
       const search = memberSearchResult.search
@@ -224,6 +273,10 @@ export function ChatInputPanel({
       setShowTaskSuggestions(false)
       setTaskSuggestions([])
       setTaskTriggerIndex(-1)
+      
+      setShowCommandSuggestions(false)
+      setCommandSuggestions([])
+      setCommandTriggerIndex(-1)
     } else if (taskSearchResult.active && isGroup && conversationTasks) {
       const search = taskSearchResult.search
       const index = taskSearchResult.index
@@ -241,6 +294,30 @@ export function ChatInputPanel({
       setShowSuggestions(false)
       setSuggestions([])
       setTagTriggerIndex(-1)
+      
+      setShowCommandSuggestions(false)
+      setCommandSuggestions([])
+      setCommandTriggerIndex(-1)
+    } else if (commandSearchResult.active) {
+      const search = commandSearchResult.search
+      const index = commandSearchResult.index
+
+      const filtered = COMMANDS.filter((c) =>
+        c.command.toLowerCase().includes(search.toLowerCase())
+      )
+
+      setCommandSuggestions(filtered)
+      setCommandTriggerIndex(index)
+      setActiveCommandSuggestionIndex(0)
+      setShowCommandSuggestions(filtered.length > 0)
+
+      setShowSuggestions(false)
+      setSuggestions([])
+      setTagTriggerIndex(-1)
+
+      setShowTaskSuggestions(false)
+      setTaskSuggestions([])
+      setTaskTriggerIndex(-1)
     } else {
       setShowSuggestions(false)
       setSuggestions([])
@@ -249,7 +326,49 @@ export function ChatInputPanel({
       setShowTaskSuggestions(false)
       setTaskSuggestions([])
       setTaskTriggerIndex(-1)
+      
+      setShowCommandSuggestions(false)
+      setCommandSuggestions([])
+      setCommandTriggerIndex(-1)
     }
+  }
+
+  const selectCommandSuggestion = React.useCallback(
+    (commandItem: typeof COMMANDS[0]) => {
+      const text = input
+      const triggerIndex = commandTriggerIndex
+      const caret = inputRef.current?.selectionStart ?? text.length
+
+      const before = text.slice(0, triggerIndex)
+      const after = text.slice(caret)
+      const newText = before + `/${commandItem.command} ` + after
+
+      setInput(newText)
+
+      setShowCommandSuggestions(false)
+      setCommandSuggestions([])
+      setCommandTriggerIndex(-1)
+
+      // Restore focus and cursor position
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+          const newCursorPos = triggerIndex + commandItem.command.length + 2 // "/" + command + " "
+          inputRef.current.setSelectionRange(newCursorPos, newCursorPos)
+          updateSuggestions(newText, newCursorPos)
+        }
+      }, 0)
+    },
+    [input, setInput, commandTriggerIndex, isGroup, activeConversation, conversationTasks, currentUserId, getTagSearch, getTaskSearch, getCommandSearch]
+  )
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleInputChange(e)
+
+    const value = e.target.value
+    const caret = e.target.selectionStart ?? 0
+
+    updateSuggestions(value, caret)
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -303,6 +422,31 @@ export function ChatInputPanel({
       }
     }
 
+    if (showCommandSuggestions && commandSuggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        setActiveCommandSuggestionIndex((prev) => (prev + 1) % commandSuggestions.length)
+        return
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault()
+        setActiveCommandSuggestionIndex(
+          (prev) => (prev - 1 + commandSuggestions.length) % commandSuggestions.length
+        )
+        return
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault()
+        selectCommandSuggestion(commandSuggestions[activeCommandSuggestionIndex])
+        return
+      }
+      if (e.key === "Escape") {
+        e.preventDefault()
+        setShowCommandSuggestions(false)
+        return
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       setShowSuggestions(false)
       setSuggestions([])
@@ -311,6 +455,10 @@ export function ChatInputPanel({
       setShowTaskSuggestions(false)
       setTaskSuggestions([])
       setTaskTriggerIndex(-1)
+
+      setShowCommandSuggestions(false)
+      setCommandSuggestions([])
+      setCommandTriggerIndex(-1)
     }
 
     handleKeyDown(e)
@@ -325,6 +473,10 @@ export function ChatInputPanel({
     setShowTaskSuggestions(false)
     setTaskSuggestions([])
     setTaskTriggerIndex(-1)
+    
+    setShowCommandSuggestions(false)
+    setCommandSuggestions([])
+    setCommandTriggerIndex(-1)
   }
 
   // Reset suggestions when switching conversations
@@ -337,6 +489,10 @@ export function ChatInputPanel({
     setShowTaskSuggestions(false)
     setTaskSuggestions([])
     setTaskTriggerIndex(-1)
+    
+    setShowCommandSuggestions(false)
+    setCommandSuggestions([])
+    setCommandTriggerIndex(-1)
   }, [activeConversation?.conversation?.id])
 
   // Handle clicking outside to hide suggestions
@@ -345,6 +501,7 @@ export function ChatInputPanel({
       if (inputRef.current && !inputRef.current.contains(e.target as Node)) {
         setShowSuggestions(false)
         setShowTaskSuggestions(false)
+        setShowCommandSuggestions(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -434,6 +591,48 @@ export function ChatInputPanel({
                   {stripHtml(task.description)}
                 </div>
               )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Command suggestions dropdown */}
+      {showCommandSuggestions && commandSuggestions.length > 0 && (
+        <div className="absolute bottom-full left-4 z-50 mb-2 max-h-48 w-80 overflow-y-auto rounded-xl border border-border/40 bg-popover/85 p-1 text-popover-foreground shadow-xl backdrop-blur-md dark:bg-muted/80">
+          <div className="px-2.5 py-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+            {t("chat.commands", "Lệnh")}
+          </div>
+          {commandSuggestions.map((cmd, i) => (
+            <button
+              key={cmd.command}
+              type="button"
+              onClick={() => selectCommandSuggestion(cmd)}
+              className={cn(
+                "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors",
+                i === activeCommandSuggestionIndex
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              )}
+            >
+              <div className={cn(
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-mono border",
+                i === activeCommandSuggestionIndex
+                  ? "bg-primary-foreground/20 border-primary-foreground/30 text-primary-foreground"
+                  : "bg-muted border-border/50 text-muted-foreground"
+              )}>
+                /
+              </div>
+              <div className="flex items-baseline gap-2 truncate">
+                <span className="font-semibold text-[13px]">{cmd.command}</span>
+                <span className={cn(
+                  "text-[11px] truncate",
+                  i === activeCommandSuggestionIndex
+                    ? "text-primary-foreground/80"
+                    : "text-muted-foreground"
+                )}>
+                  {cmd.description}
+                </span>
+              </div>
             </button>
           ))}
         </div>

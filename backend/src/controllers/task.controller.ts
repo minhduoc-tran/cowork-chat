@@ -91,6 +91,8 @@ async function createTask(req: Request, res: Response, next: NextFunction) {
       ["minutes", "hours", "days"].includes(req.body.estimatedUnit)
         ? req.body.estimatedUnit
         : undefined;
+    const status =
+      typeof req.body.status === "string" ? req.body.status.trim() : undefined;
 
     const result = await taskService.createTask({
       title,
@@ -98,6 +100,7 @@ async function createTask(req: Request, res: Response, next: NextFunction) {
       conversationId,
       dueDate,
       priority,
+      status,
       createdById: req.user.id,
       assignedToId,
       estimatedValue,
@@ -153,6 +156,10 @@ async function updateTask(req: Request, res: Response, next: NextFunction) {
       ["minutes", "hours", "days", null].includes(req.body.estimatedUnit)
         ? req.body.estimatedUnit
         : undefined;
+    const position =
+      typeof req.body.position === "number" || req.body.position === null
+        ? req.body.position
+        : undefined;
 
     const result = await taskService.updateTask(taskId, req.user.id, {
       title,
@@ -162,7 +169,8 @@ async function updateTask(req: Request, res: Response, next: NextFunction) {
       dueDate,
       assignedToId,
       estimatedValue,
-      estimatedUnit
+      estimatedUnit,
+      position
     });
 
     return ApiResponse.ok(res, "Task updated successfully", result);

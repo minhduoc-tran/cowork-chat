@@ -38,6 +38,7 @@ export const tasksTable = pgTable(
     }),
     estimatedValue: integer("estimated_value"),
     estimatedUnit: varchar("estimated_unit", { length: 20 }),
+    position: real("position"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -49,7 +50,8 @@ export const tasksTable = pgTable(
     index("tasks_conversation_idx").on(table.conversationId),
     index("tasks_assigned_to_idx").on(table.assignedToId),
     index("tasks_status_idx").on(table.status),
-    index("tasks_created_by_idx").on(table.createdById)
+    index("tasks_created_by_idx").on(table.createdById),
+    index("tasks_position_idx").on(table.position)
   ]
 );
 

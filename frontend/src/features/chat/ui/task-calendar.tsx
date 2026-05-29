@@ -9,21 +9,35 @@ interface TaskCalendarProps {
   tasks: Task[]
   onSelectTask: (task: Task) => void
   onAddTask: (dueDateStr: string) => void
-  onUpdateTaskDueDate?: (taskId: number, dueDate: string | null) => Promise<void>
+  onUpdateTaskDueDate?: (
+    taskId: number,
+    dueDate: string | null
+  ) => Promise<void>
 }
 
-export function TaskCalendar({ tasks, onSelectTask, onAddTask, onUpdateTaskDueDate }: TaskCalendarProps) {
+export function TaskCalendar({
+  tasks,
+  onSelectTask,
+  onAddTask,
+  onUpdateTaskDueDate,
+}: TaskCalendarProps) {
   const { t } = useTranslation()
   const [currentDate, setCurrentDate] = React.useState(() => new Date())
-  const [dragOverDateKey, setDragOverDateKey] = React.useState<string | null>(null)
+  const [dragOverDateKey, setDragOverDateKey] = React.useState<string | null>(
+    null
+  )
 
   // Navigation
   const prevMonth = () => {
-    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+    setCurrentDate(
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+    )
   }
 
   const nextMonth = () => {
-    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+    setCurrentDate(
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+    )
   }
 
   const goToToday = () => {
@@ -107,7 +121,11 @@ export function TaskCalendar({ tasks, onSelectTask, onAddTask, onUpdateTaskDueDa
   const formatMonthTitle = (date: Date) => {
     const month = date.getMonth() + 1
     const year = date.getFullYear()
-    return t("tasks.calendarMonthTitle", { month, year, defaultValue: `Tháng ${month} năm ${year}` })
+    return t("tasks.calendarMonthTitle", {
+      month,
+      year,
+      defaultValue: `Tháng ${month} năm ${year}`,
+    })
   }
 
   // Week day headers
@@ -131,7 +149,9 @@ export function TaskCalendar({ tasks, onSelectTask, onAddTask, onUpdateTaskDueDa
     <div className="notion-calendar select-none">
       {/* Calendar Header */}
       <div className="notion-calendar-header">
-        <div className="notion-calendar-title">{formatMonthTitle(currentDate)}</div>
+        <div className="notion-calendar-title">
+          {formatMonthTitle(currentDate)}
+        </div>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -163,7 +183,13 @@ export function TaskCalendar({ tasks, onSelectTask, onAddTask, onUpdateTaskDueDa
       <div className="notion-calendar-grid">
         {/* Day headers: Mon - Sun */}
         {weekDays.map((day, idx) => (
-          <div key={idx} className="notion-calendar-day-header">
+          <div
+            key={idx}
+            className={cn(
+              "notion-calendar-day-header",
+              idx >= 5 && "notion-calendar-day-header--weekend"
+            )}
+          >
             {day}
           </div>
         ))}
@@ -173,6 +199,7 @@ export function TaskCalendar({ tasks, onSelectTask, onAddTask, onUpdateTaskDueDa
           const dateTasks = getTasksForDate(date)
           const today = isToday(date)
           const isDragOver = dragOverDateKey === key
+          const weekendDay = date.getDay() === 0 || date.getDay() === 6
 
           // Format ISO date local string (YYYY-MM-DD) for pre-filling
           const yearStr = date.getFullYear()
@@ -186,6 +213,8 @@ export function TaskCalendar({ tasks, onSelectTask, onAddTask, onUpdateTaskDueDa
               className={cn(
                 "notion-calendar-cell",
                 !isCurrentMonth && "notion-calendar-cell--outer",
+                weekendDay && isCurrentMonth && "notion-calendar-cell--weekend",
+                today && "notion-calendar-cell--today",
                 isDragOver && "notion-calendar-cell--drag-over"
               )}
               onDragOver={(e) => {
@@ -243,15 +272,18 @@ export function TaskCalendar({ tasks, onSelectTask, onAddTask, onUpdateTaskDueDa
                     onClick={() => onSelectTask(task)}
                     className={cn(
                       "notion-calendar-task-badge",
-                      task.status === "completed" && "notion-calendar-task-badge--completed"
+                      task.status === "completed" &&
+                        "notion-calendar-task-badge--completed"
                     )}
                     title={task.title}
                   >
                     <span
-                      className="size-1.5 rounded-full shrink-0"
+                      className="size-1.5 shrink-0 rounded-full"
                       style={{ backgroundColor: priorityDot[task.priority] }}
                     />
-                    <span className="notion-calendar-task-badge-title">{task.title}</span>
+                    <span className="notion-calendar-task-badge-title">
+                      {task.title}
+                    </span>
                   </button>
                 ))}
               </div>

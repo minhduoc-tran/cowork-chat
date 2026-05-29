@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
 import { useCreateTask, useAddTaskMember } from "@/shared/api"
+import type { TaskStatus } from "@/shared/api"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -20,9 +21,11 @@ interface TaskCreateModalProps {
   members: Array<{ userId: number; displayName: string; avatar: string | null }>
   currentUserId: number
   initialDueDate?: string | null
+  initialStatusKey?: string | null
+  statuses?: TaskStatus[]
 }
 
-export function TaskCreateModal({ open, onOpenChange, conversationId, members, currentUserId, initialDueDate }: TaskCreateModalProps) {
+export function TaskCreateModal({ open, onOpenChange, conversationId, members, currentUserId, initialDueDate, initialStatusKey, statuses }: TaskCreateModalProps) {
   const { t } = useTranslation()
   const createTaskMutation = useCreateTask()
   const addTaskMemberMutation = useAddTaskMember()
@@ -31,10 +34,20 @@ export function TaskCreateModal({ open, onOpenChange, conversationId, members, c
   const [description, setDescription] = React.useState("")
   const [priority, setPriority] = React.useState<"low" | "medium" | "high">("medium")
   const [dueDate, setDueDate] = React.useState("")
+  const [statusKey, setStatusKey] = React.useState("todo")
   const [selectedUserIds, setSelectedUserIds] = React.useState<number[]>([])
   const [estimatedValue, setEstimatedValue] = React.useState("")
   const [estimatedUnit, setEstimatedUnit] = React.useState<"minutes" | "hours" | "days">("hours")
   const [assigneeDropdownOpen, setAssigneeDropdownOpen] = React.useState(false)
+
+  const statusesList = React.useMemo(() => {
+    if (statuses && statuses.length > 0) return statuses
+    return [
+      { key: "todo", name: t("tasks.statusTodo", "Cần làm") },
+      { key: "in_progress", name: t("tasks.statusInProgress", "Đang làm") },
+      { key: "completed", name: t("tasks.statusCompleted", "Hoàn thành") }
+    ]
+  }, [statuses, t])
 
   React.useEffect(() => {
     if (open) {
@@ -46,8 +59,9 @@ export function TaskCreateModal({ open, onOpenChange, conversationId, members, c
       setEstimatedValue("")
       setEstimatedUnit("hours")
       setAssigneeDropdownOpen(false)
+      setStatusKey(initialStatusKey || (statusesList[0]?.key ?? "todo"))
     }
-  }, [open, initialDueDate])
+  }, [open, initialDueDate, initialStatusKey, statusesList])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,6 +80,7 @@ export function TaskCreateModal({ open, onOpenChange, conversationId, members, c
         assignedToId: selectedUserIds[0] ?? null,
         estimatedValue: estimatedValue ? Number(estimatedValue) : null,
         estimatedUnit: estimatedValue ? estimatedUnit : null,
+        status: statusKey,
       })
 
       const extraAssignees = selectedUserIds.filter(
@@ -150,14 +165,25 @@ export function TaskCreateModal({ open, onOpenChange, conversationId, members, c
             </span>
 
             <div className="notion-property-grid">
-              {/* Status - Always todo for new task */}
+              {/* Status */}
               <div className="notion-property-row">
                 <span className="notion-property-label">
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--notion-text-tertiary)] mr-1.5" />
-                  {t("tasks.status", "Status")}
+                  {t("tasks.status", "Trạng thái")}
                 </span>
                 <div className="notion-property-value">
-                  <span className="text-xs text-[var(--notion-text-secondary)]">{t("tasks.statusTodo", "To do")}</span>
+                  <select
+                    value={statusKey}
+                    onChange={(e) => setStatusKey(e.target.value)}
+                    className="notion-property-select"
+                    disabled={createTaskMutation.isPending}
+                  >
+                    {statusesList.map((s) => (
+                      <option key={s.key} value={s.key}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

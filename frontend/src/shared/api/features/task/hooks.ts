@@ -8,6 +8,9 @@ import type {
   UpdateTaskPayload,
   CreateCommentPayload,
   UpdateCommentPayload,
+  CreateTaskStatusPayload,
+  UpdateTaskStatusPayload,
+  TaskStatus,
 } from "./types"
 
 export function useTasks(conversationId?: number | null) {
@@ -73,6 +76,40 @@ export function useUpdateTask() {
       taskId: number
       payload: UpdateTaskPayload
     }) => taskApi.update(taskId, payload).then((res) => res.data.data),
+    onMutate: async ({ taskId, payload }) => {
+      // Cancel outgoing refetches to prevent them from overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["tasks"] })
+
+      // Snapshot all active task queries
+      const previousQueries = queryClient.getQueriesData<Task[]>({ queryKey: ["tasks"] })
+
+      // Optimistically update the matching queries
+      previousQueries.forEach(([queryKey, oldTasks]) => {
+        if (!oldTasks) return
+        const hasTask = oldTasks.some((t) => t.id === taskId)
+        if (hasTask) {
+          queryClient.setQueryData<Task[]>(
+            queryKey,
+            oldTasks.map((t) => {
+              if (t.id === taskId) {
+                return { ...t, ...payload } as Task
+              }
+              return t
+            })
+          )
+        }
+      })
+
+      return { previousQueries }
+    },
+    onError: (err, variables, context) => {
+      // Rollback to the previous state on failure
+      if (context?.previousQueries) {
+        context.previousQueries.forEach(([queryKey, oldTasks]) => {
+          queryClient.setQueryData(queryKey, oldTasks)
+        })
+      }
+    },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({
         queryKey: ["tasks", data.conversationId],
@@ -313,6 +350,76 @@ export function useDeleteComment() {
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({
         queryKey: ["task_comments", variables.taskId],
+      })
+    },
+  })
+}
+
+// Task Status Hooks
+export function useTaskStatuses(conversationId: number | null) {
+  return useQuery({
+    queryKey: ["task_statuses", conversationId ?? null],
+    queryFn: () =>
+      taskApi
+        .listStatuses(conversationId)
+        .then((res) => res.data.data ?? []),
+  })
+}
+
+export function useCreateTaskStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      payload,
+    }: {
+      conversationId: number
+      payload: CreateTaskStatusPayload
+    }) => taskApi.createStatus(conversationId, payload).then((res) => res.data.data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["task_statuses", data.conversationId],
+      })
+    },
+  })
+}
+
+export function useUpdateTaskStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      statusId,
+      payload,
+    }: {
+      conversationId: number
+      statusId: number
+      payload: UpdateTaskStatusPayload
+    }) => taskApi.updateStatus(conversationId, statusId, payload).then((res) => res.data.data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["task_statuses", data.conversationId],
+      })
+    },
+  })
+}
+
+export function useDeleteTaskStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      statusId,
+    }: {
+      conversationId: number
+      statusId: number
+    }) => taskApi.deleteStatus(conversationId, statusId).then((res) => res.data.data),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["task_statuses", variables.conversationId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks", variables.conversationId],
       })
     },
   })

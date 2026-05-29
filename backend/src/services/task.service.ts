@@ -258,7 +258,10 @@ async function listTasks(input: {
 
     return db.query.tasksTable.findMany({
       where: whereClause,
-      orderBy: (tasks, { desc }) => [desc(tasks.createdAt)],
+      orderBy: (tasks, { asc, desc }) => [
+        asc(tasks.position),
+        desc(tasks.createdAt)
+      ],
       limit: input.limit,
       offset: input.offset,
       with: {
@@ -318,7 +321,10 @@ async function listTasks(input: {
 
     return db.query.tasksTable.findMany({
       where: whereClause,
-      orderBy: (tasks, { desc }) => [desc(tasks.createdAt)],
+      orderBy: (tasks, { asc, desc }) => [
+        asc(tasks.position),
+        desc(tasks.createdAt)
+      ],
       limit: input.limit,
       offset: input.offset,
       with: {
@@ -361,6 +367,7 @@ async function createTask(input: {
   conversationId?: number;
   dueDate?: string;
   priority?: string;
+  status?: string;
   createdById: number;
   assignedToId?: number;
   estimatedValue?: number;
@@ -373,6 +380,37 @@ async function createTask(input: {
     );
   }
 
+  const status = input.status || "todo";
+
+  // Find max position for status in this scope to compute the next position
+  let maxPosition = 0;
+  
+  if (input.conversationId) {
+    const lastTask = await db.query.tasksTable.findFirst({
+      where: and(
+        eq(tasksTable.conversationId, input.conversationId),
+        eq(tasksTable.status, status)
+      ),
+      orderBy: (tasks, { desc }) => [desc(tasks.position)]
+    });
+    maxPosition = lastTask?.position ?? 0;
+  } else {
+    const lastTask = await db.query.tasksTable.findFirst({
+      where: and(
+        isNull(tasksTable.conversationId),
+        eq(tasksTable.status, status),
+        or(
+          eq(tasksTable.createdById, input.createdById),
+          eq(tasksTable.assignedToId, input.createdById)
+        )
+      ),
+      orderBy: (tasks, { desc }) => [desc(tasks.position)]
+    });
+    maxPosition = lastTask?.position ?? 0;
+  }
+
+  const newPosition = maxPosition + 1000;
+
   const [inserted] = await db
     .insert(tasksTable)
     .values({
@@ -381,6 +419,8 @@ async function createTask(input: {
       conversationId: input.conversationId ?? null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
       priority: input.priority || "medium",
+      status: status,
+      position: newPosition,
       createdById: input.createdById,
       assignedToId: input.assignedToId ?? null,
       estimatedValue: input.estimatedValue ?? null,
@@ -430,6 +470,7 @@ async function updateTask(
     assignedToId: number | null;
     estimatedValue: number | null;
     estimatedUnit: "minutes" | "hours" | "days" | null;
+    position: number | null;
   }>
 ) {
   const task = await db.query.tasksTable.findFirst({
@@ -453,7 +494,7 @@ async function updateTask(
       data.dueDate !== undefined ||
       data.assignedToId !== undefined;
 
-    const isStatusUpdate = data.status !== undefined;
+    const isStatusUpdate = data.status !== undefined || data.position !== undefined;
     const isEstimateUpdate = data.estimatedValue !== undefined || data.estimatedUnit !== undefined;
 
     if (isCriticalFieldUpdate) {
@@ -485,6 +526,8 @@ async function updateTask(
     updateFields.estimatedValue = data.estimatedValue;
   if (data.estimatedUnit !== undefined)
     updateFields.estimatedUnit = data.estimatedUnit;
+  if (data.position !== undefined)
+    updateFields.position = data.position;
 
   await db
     .update(tasksTable)

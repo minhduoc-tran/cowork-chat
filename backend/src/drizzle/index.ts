@@ -9,6 +9,7 @@ import * as attachmentSchema from "./schemas/attachment.schema";
 import * as reactionSchema from "./schemas/reaction.schema";
 import * as taskSchema from "./schemas/task.schema";
 import * as taskCommentSchema from "./schemas/task-comment.schema";
+import * as taskStatusSchema from "./schemas/task-status.schema";
 import env from "../configs/env";
 
 const pool = new Pool({
@@ -26,7 +27,8 @@ const db = drizzle({
     ...attachmentSchema,
     ...reactionSchema,
     ...taskSchema,
-    ...taskCommentSchema
+    ...taskCommentSchema,
+    ...taskStatusSchema
   }
 });
 
@@ -42,3 +44,4 @@ export * from "./schemas/reaction.schema";
 export * from "./schemas/refresh-token.schema";
 export * from "./schemas/task.schema";
 export * from "./schemas/task-comment.schema";
+export * from "./schemas/task-status.schema";

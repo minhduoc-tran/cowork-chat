@@ -78,6 +78,10 @@ export {
   useCreateComment,
   useUpdateComment,
   useDeleteComment,
+  useTaskStatuses,
+  useCreateTaskStatus,
+  useUpdateTaskStatus,
+  useDeleteTaskStatus,
 } from "./features/task/hooks"
 export type {
   CreateSubtaskPayload,
@@ -92,6 +96,9 @@ export type {
   TaskComment,
   CreateCommentPayload,
   UpdateCommentPayload,
+  TaskStatus,
+  CreateTaskStatusPayload,
+  UpdateTaskStatusPayload,
 } from "./features/task/types"
 export { userApi } from "./features/user/api"
 export { useUpdateProfile } from "./features/user/hooks"

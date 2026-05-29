@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { conversationController } from "../controllers/conversation.controller";
+import { taskStatusController } from "../controllers/task-status.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -34,5 +35,11 @@ router.post(
 router.post("/:conversationId/tags", conversationController.createTag);
 router.get("/:conversationId/tags", conversationController.listConversationTags);
 router.delete("/:conversationId/tags/:tagId", conversationController.deleteConversationTag);
+
+// Task Status routes
+router.get("/:conversationId/task-statuses", taskStatusController.listStatuses);
+router.post("/:conversationId/task-statuses", taskStatusController.createStatus);
+router.patch("/:conversationId/task-statuses/:statusId", taskStatusController.updateStatus);
+router.delete("/:conversationId/task-statuses/:statusId", taskStatusController.deleteStatus);
 
 export default router;

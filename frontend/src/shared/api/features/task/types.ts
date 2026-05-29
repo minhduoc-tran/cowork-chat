@@ -50,6 +50,7 @@ export interface Task {
   assignedToId: number | null
   estimatedValue: number | null
   estimatedUnit: "minutes" | "hours" | "days" | null
+  position: number | null
   createdAt: string
   updatedAt: string
   subtasks: TaskSubtask[]
@@ -77,6 +78,7 @@ export interface CreateTaskPayload {
   assignedToId?: number | null
   estimatedValue?: number | null
   estimatedUnit?: "minutes" | "hours" | "days" | null
+  status?: string
 }
 
 export interface UpdateTaskPayload {
@@ -88,6 +90,7 @@ export interface UpdateTaskPayload {
   assignedToId?: number | null
   estimatedValue?: number | null
   estimatedUnit?: "minutes" | "hours" | "days" | null
+  position?: number
 }
 
 export interface CreateSubtaskPayload {
@@ -123,4 +126,25 @@ export interface CreateCommentPayload {
 
 export interface UpdateCommentPayload {
   content: string
+}
+
+export interface TaskStatus {
+  id: number
+  conversationId: number | null
+  key: string
+  name: string
+  color: string
+  position: number
+  createdAt: string
+}
+
+export interface CreateTaskStatusPayload {
+  name: string
+  color?: string
+}
+
+export interface UpdateTaskStatusPayload {
+  name?: string
+  color?: string
+  position?: number
 }
